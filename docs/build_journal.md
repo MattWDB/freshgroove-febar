@@ -34,3 +34,17 @@ Newest entries at the bottom.
 - Lane spoilage: ocean=14% > rail=12% > truck=10% ✓
 
 **Evidence:** docs/evidence/phase1_data_validation.txt
+
+---
+
+## Session 3 — 2026-11-10 — Lakeflow SDP Pipeline + Unity Catalog Governance
+
+**What:** Built Bronze/Silver/Gold SDP pipeline with 3 notebooks. Created freshgroove-pipeline (ID: f668d89e). Uploaded pipeline notebooks to Databricks workspace. Triggered full refresh — pipeline ran to COMPLETED. All 10 tables created across bronze/silver/gold schemas. Applied table-level COMMENT ON TABLE to 3 gold tables. Added column descriptions to genie/space_instructions.md for Genie accuracy.
+
+**Why:** Lakeflow is Layer 2 of the data journey. DQ expectations (expect_or_drop) on silver tables demonstrate governance — bad spoilage rows are quarantined, not silently dropped. Gold feature table has rolling 7d/30d aggregates that the ML models need.
+
+**Outcome:** Pipeline IDLE/COMPLETED. 201,480 rows in bronze and silver. Gold has 3 tables: gold_waste_risk_features (201,480 rows), gold_kpi_summary (1 row), gold_supplier_risk (7 rows). Strawberry April spike visible in gold data (34% spoilage rate).
+
+**Key decision:** Converted source JSON arrays to NDJSON for cloudFiles Auto Loader compatibility. Used `name="schema.table"` format in @dlt.table decorators for multi-schema UC pipeline.
+
+**Evidence:** docs/evidence/phase2_pipeline_validation.txt, phase3_governance_validation.txt

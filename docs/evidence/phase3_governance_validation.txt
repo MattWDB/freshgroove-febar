@@ -1,0 +1,50 @@
+=== SESSION 3 — Unity Catalog Governance Validation — 2026-11-10 ===
+
+=== TABLE COMMENTS APPLIED ===
+table_name                   | comment
+gold_waste_risk_features     | ML feature table. One row per store/SKU/date with all signals for waste risk scoring. Source of truth for waste_classifier, demand_forecast, and supplier_reliability models.
+gold_kpi_summary             | Business KPI summary: avg_waste_rate, total_spoilage_cost_usd, otif_rate, chargeback_cost_usd. Read by app Overview tab and Genie Agent.
+gold_supplier_risk           | Supplier reliability metrics: late_rate and avg_spoilage_rate per supplier. Feeds supplier_reliability ML model and Genie queries.
+
+=== COLUMN DESCRIPTIONS (documented for Genie space instructions — applied in Session 6) ===
+gold_waste_risk_features.spoilage_pct:
+  "Fraction of on_hand_units that expired unsold. Formula: spoilage_units / on_hand_units. Target: < 0.06 (6%). Current avg: ~0.12 (12%)."
+
+gold_waste_risk_features.is_high_risk:
+  "Binary label: 1 if spoilage_pct > 0.12 (above average), 0 otherwise. Training target for waste_classifier model."
+
+gold_waste_risk_features.sales_7d_avg:
+  "Rolling 7-day average units sold for this store+SKU combination. Demand signal for the waste and demand models."
+
+gold_waste_risk_features.spoilage_30d_avg:
+  "Rolling 30-day average spoilage rate for this store+SKU. Trend signal — rising rate indicates systemic issue."
+
+gold_waste_risk_features.days_to_season_peak:
+  "Days until April 15 seasonal demand peak (strawberry season). Negative = past peak. Used by demand_forecast model."
+
+gold_supplier_risk.late_rate:
+  "Fraction of deliveries where units_received < 95% of units_ordered. Rising late_rate indicates unreliable supplier. Threshold for HIGH risk: > 0.20."
+
+gold_kpi_summary.avg_waste_rate:
+  "Portfolio-level average spoilage rate across all stores and SKUs. Displayed as 'Waste Rate' KPI in app Overview."
+
+gold_kpi_summary.total_spoilage_cost_usd:
+  "Estimated annual spoilage cost in USD. Formula: sum(spoilage_units * $45 unit value). Displayed as 'Spoilage Cost/yr' KPI."
+
+gold_kpi_summary.otif_rate:
+  "On-Time In-Full delivery rate. Current: 0.91 (91%). Retailer threshold: 0.98 (98%). Below threshold triggers 3% chargeback penalty."
+
+gold_kpi_summary.chargeback_cost_usd:
+  "Estimated annual cost of OTIF chargebacks from retail partners. Current: ~$1.5M/year at 91% OTIF."
+
+=== NOTE ON DLT VIEWS ===
+DLT in development mode publishes gold tables as views (backed by materialized Delta tables).
+Table-level COMMENT ON TABLE succeeded for all 3 gold tables.
+Column-level ALTER TABLE ... ALTER COLUMN requires a base table, not a view — these descriptions
+are incorporated into the Genie space_instructions.md instead, which achieves the same result:
+Genie reads these definitions when writing SQL queries.
+
+=== LINEAGE ===
+Unity Catalog automatically tracks lineage for all DLT pipeline outputs:
+  store_inventory.csv → bronze_inventory_raw → silver_inventory → silver_inventory_sales → gold_waste_risk_features
+  Every gold table number can be traced back to its source file.

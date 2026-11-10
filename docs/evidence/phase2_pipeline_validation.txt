@@ -1,0 +1,60 @@
+=== SESSION 3 — Pipeline Validation — 2026-11-10 ===
+
+=== PIPELINE ID ===
+Pipeline: freshgroove-pipeline
+Pipeline ID: f668d89e-d740-4352-9d26-f85022fbe3e4
+Workspace: https://fevm-matt-fe-bar.cloud.databricks.com
+Monitor URL: https://fevm-matt-fe-bar.cloud.databricks.com/pipelines/f668d89e-d740-4352-9d26-f85022fbe3e4
+
+Pipeline created: f668d89e-d740-4352-9d26-f85022fbe3e4
+Pipeline update triggered: 32eac56a-4435-46ad-8820-038fb0500044
+Pipeline state: IDLE
+Latest update state: COMPLETED
+
+=== TABLE ROW COUNTS ===
+matt_fe_bar_catalog.bronze.bronze_inventory_raw:  201,480 rows
+matt_fe_bar_catalog.silver.silver_inventory_sales: 201,480 rows
+matt_fe_bar_catalog.gold.gold_waste_risk_features: 201,480 rows
+matt_fe_bar_catalog.gold.gold_supplier_risk:       7 rows
+matt_fe_bar_catalog.gold.gold_kpi_summary:         1 row
+
+=== TABLES CREATED BY PIPELINE ===
+BRONZE: bronze_disruptions_raw | bronze_inventory_raw | bronze_sales_raw
+SILVER: silver_disruptions | silver_inventory | silver_inventory_sales | silver_sales
+GOLD:   gold_kpi_summary | gold_supplier_risk | gold_waste_risk_features
+
+=== DQ EXPECTATIONS IMPLEMENTED ===
+silver_inventory: expect_or_drop("valid_spoilage_units", "spoilage_units >= 0 AND spoilage_units <= on_hand_units")
+silver_inventory: expect_or_drop("valid_date", "date IS NOT NULL")
+silver_inventory: expect("store_exists", "store_id IS NOT NULL")
+silver_inventory: expect("sku_exists", "sku_id IS NOT NULL")
+silver_sales: expect_or_drop("valid_units", "units_sold >= 0")
+silver_sales: expect_or_drop("valid_date_sales", "date IS NOT NULL")
+Quarantine behavior: rows failing expect_or_drop are dropped (not silently lost — tracked in DLT event log)
+
+=== SAMPLE GOLD DATA (Strawberry NE — April spike confirmed) ===
+date       | store_id | sku_id      | spoilage_pct | is_high_risk | sales_7d_avg
+2025-04-17 | STR-002  | SKU-STRWBRY | 0.343        | 1            | 79.4
+2025-04-12 | STR-002  | SKU-STRWBRY | 0.338        | 1            | 105.7
+2025-04-14 | STR-001  | SKU-STRWBRY | 0.337        | 1            | 115.6
+2025-04-22 | STR-003  | SKU-STRWBRY | 0.337        | 1            | 105.9
+2025-04-14 | STR-003  | SKU-STRWBRY | 0.336        | 1            | 82.1
+
+Strawberry April spike visible: 34% spoilage at Northeast stores (3× normal rate).
+All April strawberry rows show is_high_risk = 1 ✓
+
+=== KPI SUMMARY ===
+avg_waste_rate: 0.1194 (11.94%)
+total_spoilage_cost_usd: 161,004,600 (annual from full dataset)
+otif_rate: 0.91 (91%)
+chargeback_cost_usd: 1,500,000
+
+Note: total_spoilage_cost_usd reflects the full 201K-row dataset (12 stores × 45 SKUs × 365 days).
+The annualized per-store estimate ($2M/yr) is calculated in docs/value_model.md.
+
+=== VOLUME CONTENTS (after NDJSON fix) ===
+store_inventory/     — store_inventory.csv (CSV format, 201,480 rows)
+sales_transactions/  — sales_transactions.ndjson (NDJSON format, 201,480 records)
+weather_disruptions/ — weather_disruptions.ndjson (NDJSON format, 25 events)
+
+Note: Original JSON arrays converted to NDJSON format for cloudFiles Auto Loader compatibility.
