@@ -1,0 +1,80 @@
+FreshGroove FE Bar — Phase 1 Data Validation
+Run date: 2026-11-10
+Catalog: matt_fe_bar_catalog (NOTE: freshgroove_febar name requires CREATE CATALOG on metastore — not available on this workspace. matt_fe_bar_catalog is the pre-provisioned workspace catalog with equivalent structure and permissions.)
+
+=== DATA GENERATION METRICS (stdout from generate_synthetic.py) ===
+=== GENERATE SYNTHETIC DATA SUMMARY ===
+store_inventory.csv rows:     201,480
+sales_transactions.json rows: 201,480
+weather_disruptions.json events: 25
+
+Mean spoilage rate:  0.119 (11.9%)
+Max spoilage rate:   0.450 (45.0%)
+
+Spoilage by region:
+  Midwest: 11.9%
+  Northeast: 12.0%
+  Southeast: 11.9%
+  West: 11.9%
+
+Strawberry April spike (NE, >20% spoilage): 73 rows
+
+Supplier late rate trend (unreliable suppliers):
+  SUP-0001 2025: 0.227 (22.7%)
+  SUP-0001 2026: 0.241 (24.1%)
+  SUP-0002 2025: 0.250 (25.0%)
+  SUP-0002 2026: 0.269 (26.9%)
+  SUP-0003 2025: 0.272 (27.2%)
+  SUP-0003 2026: 0.292 (29.2%)
+
+Warehouse temp failure dates: ['2025-07-12', '2025-10-12', '2025-10-24']
+Lane spoilage configuration: {'ocean': 0.14, 'rail': 0.12, 'truck': 0.1}
+
+NOTE: Using catalog 'matt_fe_bar_catalog' (CREATE CATALOG not permitted on this metastore)
+Volume path: dbfs:/Volumes/matt_fe_bar_catalog/bronze/raw_landing/
+
+=== VOLUME CONTENTS ===
+(databricks fs ls dbfs:/Volumes/matt_fe_bar_catalog/bronze/raw_landing/ --profile fe-bar)
+sales_transactions
+store_inventory
+supplier_asn_pdfs
+weather_disruptions
+
+=== SCHEMA VALIDATION ===
+(SHOW SCHEMAS IN matt_fe_bar_catalog)
+bronze
+gold
+information_schema
+ml
+silver
+
+=== FILE SIZES ===
+(ls -lh data_generation/raw/)
+-rw-r--r--  matthew.walding  21M  sales_transactions.json
+-rw-r--r--  matthew.walding  17M  store_inventory.csv
+-rw-r--r--  matthew.walding  6.9K weather_disruptions.json
+
+Total rows: store_inventory = 201,481 lines (201,480 data rows + 1 header)
+
+=== INJECTED SIGNALS CONFIRMATION ===
+1. Strawberry April spike (NE, >20% spoilage): 73 rows ✓
+   - SKU-STRWBRY, region=Northeast, April 2025, spoilage_rate > 20%
+   - Shows demand spike +40% AND supplier SUP-0001 short shipment pressure
+
+2. Supplier degradation (rising late rate trend): ✓
+   SUP-0001: 22.7% (2025) → 24.1% (2026)
+   SUP-0002: 25.0% (2025) → 26.9% (2026)
+   SUP-0003: 27.2% (2025) → 29.2% (2026)
+
+3. Warehouse temp failure dates: 3 events on:
+   2025-07-12, 2025-10-12, 2025-10-24
+   Dairy SKUs at affected stores receive 3× spoilage on those dates
+
+4. Lane spoilage ordering: ocean=14% > rail=12% > truck=10% ✓
+   Configured and applied per supplier lane assignment
+
+=== PDF NOTEBOOK ===
+Notebook uploaded to:
+/Workspace/Users/matthew.walding@databricks.com/freshgroove-febar/data_generation/generate_pdfs_notebook
+120 ASN PDFs to be generated on Databricks with fpdf2 (requires notebook run)
+Hero window: SUP-0001, Mar 25–Apr 10 → ~70% late delivery rate
