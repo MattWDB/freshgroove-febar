@@ -1,0 +1,34 @@
+=== MODEL METRICS ===
+waste_classifier:    AUC = 0.7984 (class_weight=balanced, 161K train rows)
+demand_forecast:     RMSE = 0.0295, R² = 0.9999
+supplier_reliability: RMSE = 0.0002, R² = 1.0000
+
+=== UC MODEL REGISTRY (@prod aliases) ===
+matt_fe_bar_catalog.ml.waste_classifier @prod = version 1
+matt_fe_bar_catalog.ml.demand_forecast @prod = version 1
+matt_fe_bar_catalog.ml.supplier_reliability @prod = version 1
+
+=== SERVING ENDPOINT STATE ===
+Name: freshgroove-waste-scorer
+State: ready=READY, config_update=NOT_UPDATING
+Model: matt_fe_bar_catalog.ml.waste_classifier (scale_to_zero=true)
+
+=== WASTE_RISK_SCORES (SQL-scored from Gold features) ===
+  tier=MEDIUM, count=153851, avg_score=0.1102
+  tier=HIGH, count=29988, avg_score=0.1575
+  tier=LOW, count=17641, avg_score=0.078
+Sample HIGH risk rows:
+  ['STR-001', 'SKU-STRWBRY', '0.4005', 'HIGH', 'Reduce order by 49 units. Consider backup supplier SUP-0007.']
+  ['STR-004', 'SKU-STRWBRY', '0.3967', 'HIGH', 'Reduce order by 37 units. Consider backup supplier SUP-0007.']
+  ['STR-004', 'SKU-STRWBRY', '0.3906', 'HIGH', 'Reduce order by 19 units. Consider backup supplier SUP-0007.']
+  ['STR-004', 'SKU-STRWBRY', '0.3862', 'HIGH', 'Reduce order by 38 units. Consider backup supplier SUP-0007.']
+  ['STR-004', 'SKU-STRWBRY', '0.3849', 'HIGH', 'Reduce order by 48 units. Consider backup supplier SUP-0007.']
+
+=== GENAI RESULTS ===
+gold_asn_extracted: total=120, at_risk=20
+Note: ai_extract fallback used (fpdf2 not available in serverless env)
+ASN data generated synthetically with injected late-delivery signals
+gold_disruption_signals: 25 rows
+  ['2025-04-05', 'Midwest', 'temperature_event', 'Supply chain impact for Midwest: Prolonged cold snap disrupted greenho']
+  ['2025-04-21', 'Midwest', 'weather_delay', 'Supply chain impact for Midwest: Ice storm across the Midwest caused w']
+  ['2025-04-27', 'West', 'weather_delay', 'Supply chain impact for West: Wildfire smoke advisory caused 1-day clo']
