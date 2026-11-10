@@ -1,0 +1,3 @@
+bundle:
+  name: freshgroove-febar
+  target: dev
