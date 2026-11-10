@@ -1,0 +1,11 @@
+=== WORKSPACE CONNECTION (fe-bar profile) ===
+ID                Type       Language  Path
+3287960685046962  DIRECTORY            /Repos
+3287960685046959  DIRECTORY            /Users
+3287960685046961  DIRECTORY            /Shared
+
+=== GITHUB REPO ===
+{"name":"freshgroove-febar","url":"https://github.com/MattWDB/freshgroove-febar","visibility":"PUBLIC"}
+
+=== GIT LOG ===
+2293288 Session 1: project scaffold, decisions log, value model, architecture context diagram
