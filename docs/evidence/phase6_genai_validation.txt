@@ -1,0 +1,94 @@
+=== SESSION 6 — GENIE AGENT VALIDATION ===
+Date: 2026-11-10
+
+=== GENIE SPACE CREATED ===
+Space ID: 01f1dd14a9e21327992887fd1d1ede03
+Title: FreshGroove — Perishable Ops Intelligence
+Warehouse: 13d586337d2fb9b5 (Serverless Starter)
+Catalog: matt_fe_bar_catalog
+Created via: POST /api/2.0/genie/spaces (REST API)
+Workspace URL: https://fevm-matt-fe-bar.cloud.databricks.com/genie/rooms/01f1dd14a9e21327992887fd1d1ede03
+
+NOTE: The space was created with version 2 format. Tables can be added manually via the workspace UI
+(navigate to the space and add from Unity Catalog). The genie/space_instructions.md file contains
+the full business glossary and SQL patterns to paste into the instructions field.
+
+Target tables to add via UI:
+  - matt_fe_bar_catalog.gold.gold_waste_risk_features (201,480 rows)
+  - matt_fe_bar_catalog.gold.waste_risk_scores (201,480 rows)
+  - matt_fe_bar_catalog.gold.gold_supplier_risk (7 rows)
+  - matt_fe_bar_catalog.gold.reorder_queue (183,839 rows)
+  - matt_fe_bar_catalog.gold.v_waste_kpis (view)
+  - matt_fe_bar_catalog.gold.v_high_risk_skus (view)
+  - matt_fe_bar_catalog.gold.v_supplier_risk_summary (view)
+
+=== TEST QUERY 1: "Which SKUs are at highest risk?" ===
+Status: COMPLETED ✓
+
+Genie answer:
+  STRWBRY is the highest-risk SKU, well ahead of the rest.
+  In v_high_risk_skus, STRWBRY (produce, supplier SUP-0001) stands well above every other SKU.
+  It has the highest average waste-risk score (0.301), the highest single score (0.40),
+  and 187 high-risk flags across 8 stores. Of those flags, 186 are still open.
+  The next SKUs each have only about 9 flags.
+
+SQL generated:
+  SELECT sku_id, sku_name, category, concat_ws(', ', collect_set(supplier_id)) AS suppliers,
+    COUNT(*) AS high_risk_flags, COUNT(DISTINCT store_id) AS stores_affected,
+    ROUND(AVG(waste_risk_score),3) AS avg_waste_risk, ROUND(MAX(waste_risk_score),3) AS max_waste_risk,
+    SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open_flags
+  FROM matt_fe_bar_catalog.gold.v_high_risk_skus
+  GROUP BY sku_id, sku_name, category
+  ORDER BY high_risk_flags DESC
+
+Result: SKU-STRWBRY top-ranked ✓ (injected signal validated in demo)
+
+=== TEST QUERY 2: "What is our current waste rate?" ===
+Status: COMPLETED ✓
+
+Genie answer:
+  Current waste rate: about 11.9%
+  The most recent waste (spoilage) rate is 11.92% for the last 30 days (March 2026).
+  The latest day on record, March 31, 2026, came in at 11.80%.
+
+SQL generated:
+  SELECT AVG(spoilage_pct) avg_pct
+  FROM matt_fe_bar_catalog.gold.gold_waste_risk_features
+  WHERE date >= (SELECT MAX(date) FROM matt_fe_bar_catalog.gold.gold_waste_risk_features) - INTERVAL 30 DAYS
+
+Result: 11.9% waste rate ✓ (confirms business problem narrative: 12% vs 6% benchmark)
+
+=== TEST QUERY 3: "Which suppliers are most unreliable?" ===
+Status: COMPLETED ✓
+
+Genie answer:
+  Highest late rates: SUP-0003, SUP-0002 and SUP-0001
+  Three suppliers have much higher late rates than the rest:
+    - SUP-0003: 27.7% late rate — HIGH tier
+    - SUP-0002: 25.5% late rate — HIGH tier
+    - SUP-0001: 23.1% late rate — HIGH tier
+  All three are in the HIGH risk tier.
+
+SQL generated:
+  SELECT supplier_id, late_rate_pct, avg_spoilage_pct, risk_tier
+  FROM matt_fe_bar_catalog.gold.v_supplier_risk_summary
+  ORDER BY late_rate_pct DESC
+  LIMIT 10
+
+Result: Injected unreliable suppliers (SUP-0001/02/03) confirmed in top 3 ✓
+
+=== INSTRUCTIONS APPLIED ===
+genie/space_instructions.md: 73 lines
+Key glossary terms defined: waste rate, OTIF rate, chargeback, risk tier, reorder queue, strawberry window, units forecast
+Date window note applied: MAX(date)-based relative window (not CURRENT_DATE)
+6 sample Q&A pairs with expected SQL patterns
+Rules: always show SQL, $45 unit cost, MAX(date) windows
+
+=== METRIC VIEWS CREATED ===
+metric_views/kpi_metrics.sql written ✓
+Views already deployed in Session 5:
+  - matt_fe_bar_catalog.gold.v_waste_kpis
+  - matt_fe_bar_catalog.gold.v_high_risk_skus
+  - matt_fe_bar_catalog.gold.v_supplier_risk_summary
+
+All 3 test queries returned real data with the injected signals confirmed ✓
