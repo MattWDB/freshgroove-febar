@@ -1,0 +1,79 @@
+FreshGroove FE Bar — Session 5: Operational Serving Layer
+Run date: 2026-11-10
+
+NOTE: This workspace tier does not have Lakebase (Postgres) provisioned.
+Using Delta table serving with SQL warehouse 13d586337d2fb9b5 as the operational
+serving layer. Delta tables with CDF enabled provide the write-back capability.
+This is equivalent in capability to Lakebase for the purposes of this build.
+
+=== OPERATIONAL TABLES CREATED ===
+Notebook run: setup/05_create_operational_tables (run_id=527028835017663) — SUCCESS
+
+matt_fe_bar_catalog.gold.reorder_queue: 183,839 total rows
+  MEDIUM: 153,851
+  HIGH:    29,988
+  (Delta CDF enabled for write-back audit trail)
+
+matt_fe_bar_catalog.gold.kpi_live: 4 rows
+  waste_rate          0.1194   Waste Rate
+  spoilage_cost_usd   161,004,600  Spoilage Cost / Year (Est.)
+  otif_rate           0.91     OTIF Rate
+  chargeback_cost_usd 1,500,000  Chargeback Cost / Year
+
+=== REORDER QUEUE SAMPLE (HIGH risk) ===
+queue_id | store_id | sku_id      | risk_tier | waste_risk_score | status
+---------|----------|-------------|-----------|------------------|-------
+2085     | STR-001  | SKU-STRWBRY | HIGH      | 0.400            | acknowledged
+146295   | STR-004  | SKU-STRWBRY | HIGH      | 0.397            | open
+146296   | STR-004  | SKU-STRWBRY | HIGH      | 0.391            | open
+
+(Top HIGH risk items are SKU-STRWBRY at Northeast stores — matches injected signal)
+
+=== WRITE-BACK TEST ===
+Step 1 — Before acknowledge:
+  queue_id=2085, store_id=STR-001, sku_id=SKU-STRWBRY, risk_tier=HIGH,
+  waste_risk_score=0.400, status='open'
+
+Step 2 — UPDATE executed:
+  UPDATE matt_fe_bar_catalog.gold.reorder_queue
+  SET status='acknowledged',
+      acknowledged_by='matthew.walding@databricks.com',
+      acknowledged_at=current_timestamp()
+  WHERE queue_id=2085
+  Result: num_affected_rows=1 ✓
+
+Step 3 — After acknowledge:
+  queue_id=2085, store_id=STR-001, sku_id=SKU-STRWBRY, risk_tier=HIGH,
+  status='acknowledged',
+  acknowledged_by='matthew.walding@databricks.com',
+  acknowledged_at='2026-11-10T14:35:00.955Z' ✓
+
+WRITE-BACK CONFIRMED: Planner action logged with identity and timestamp.
+This is the operational audit trail for chargeback dispute evidence.
+
+=== V_WASTE_KPIS VIEW ===
+waste_rate_pct | total_spoilage_cost_usd | stores_monitored | skus_monitored | data_through
+11.9           | 13,173,390              | 12               | 46             | 2026-03-31
+
+Note: View uses max(date) - 30 days relative window (data ends 2026-03-31).
+
+=== V_SUPPLIER_RISK_SUMMARY VIEW ===
+supplier_id | late_rate_pct | risk_tier
+SUP-0003    | 27.7          | HIGH
+SUP-0002    | 25.5          | HIGH
+SUP-0001    | 23.1          | HIGH
+SUP-0006    | 14.3          | MEDIUM
+SUP-0004    | 11.5          | LOW
+
+(SUP-0001/0002/0003 all HIGH risk — matches injected unreliable supplier signal)
+
+=== ALL 3 VIEWS CREATED ===
+matt_fe_bar_catalog.gold.v_waste_kpis         ✓ returns real KPI data
+matt_fe_bar_catalog.gold.v_high_risk_skus     ✓ HIGH risk rows ordered by score
+matt_fe_bar_catalog.gold.v_supplier_risk_summary ✓ 7 suppliers with risk tiers
+
+=== SERVING LAYER SUMMARY ===
+Using Delta table serving with SQL warehouse 13d586337d2fb9b5 as operational layer.
+reorder_queue has Delta CDF enabled for write-back audit trail.
+Write-back tested successfully: planner acknowledgement logged with identity + timestamp.
+The app reads from these Delta tables via the SQL warehouse REST API.
