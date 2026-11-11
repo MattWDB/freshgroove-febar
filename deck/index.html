@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FreshGroove Perishable Control Tower</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; }
+  .slide { min-height: 100vh; padding: 60px 80px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid #1e1e30; }
+  h2 { font-size: 1.8rem; font-weight: 600; color: #EF5B3F; margin-bottom: 20px; }
+  p { font-size: 1.1rem; color: #ccc; line-height: 1.7; margin-bottom: 16px; }
+  .kpi { display: flex; gap: 40px; margin: 32px 0; flex-wrap: wrap; }
+  .kpi-card { background: #1a1a2e; border: 1px solid #2a2a40; border-radius: 8px; padding: 24px 32px; min-width: 180px; }
+  .kpi-card .value { font-size: 2.4rem; font-weight: 700; color: #EF5B3F; }
+  .kpi-card .label { font-size: 0.9rem; color: #aaa; margin-top: 4px; }
+  .flow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 24px 0; }
+  .flow-step { background: #1a1a2e; border: 1px solid #EF5B3F; border-radius: 6px; padding: 10px 18px; font-size: 0.95rem; white-space: nowrap; }
+  .flow-arrow { color: #EF5B3F; font-size: 1.2rem; }
+  table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 0.95rem; }
+  th { text-align: left; padding: 10px 14px; background: #1a1a2e; color: #EF5B3F; border-bottom: 1px solid #2a2a40; }
+  td { padding: 10px 14px; border-bottom: 1px solid #1e1e30; color: #ccc; }
+  ul { padding-left: 24px; margin: 16px 0; }
+  li { color: #ccc; margin-bottom: 8px; line-height: 1.6; }
+  .tag { display: inline-block; background: #EF5B3F22; border: 1px solid #EF5B3F55; border-radius: 4px; padding: 2px 10px; font-size: 0.8rem; color: #EF5B3F; margin-right: 8px; }
+  .cover-eyebrow { font-size: 0.9rem; letter-spacing: 0.15em; text-transform: uppercase; color: #EF5B3F; margin-bottom: 16px; }
+  .cover-headline { font-size: 3.2rem; font-weight: 800; line-height: 1.1; margin-bottom: 16px; }
+  .cover-sub { font-size: 1.3rem; color: #aaa; }
+  .outcome-box { background: #1a1a2e; border-left: 4px solid #EF5B3F; padding: 20px 28px; margin: 24px 0; border-radius: 0 8px 8px 0; }
+  .outcome-box .big { font-size: 2rem; font-weight: 700; color: #EF5B3F; }
+  a { color: #EF5B3F; }
+  @media print { .slide { page-break-after: always; min-height: auto; padding: 40px; } }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: COVER -->
+<div class="slide">
+  <div class="cover-eyebrow">FE Bar Submission &middot; CPG Grocery &middot; November 2026</div>
+  <div class="cover-headline">FreshGroove Perishable<br>Control Tower</div>
+  <div class="cover-sub">Databricks-native waste risk management for a CPG grocery brand</div>
+  <div style="margin-top:48px;">
+    <span class="tag">Lakeflow</span>
+    <span class="tag">Unity Catalog</span>
+    <span class="tag">ML &times; 3</span>
+    <span class="tag">Genie Agent</span>
+    <span class="tag">AppKit</span>
+    <span class="tag">AI/BI Dashboard</span>
+  </div>
+  <div style="margin-top:32px;font-size:0.9rem;color:#666;">
+    GitHub: github.com/MattWDB/freshgroove-febar &nbsp;&middot;&nbsp;
+    App: freshgroove-app-7474655831226413.aws.databricksapps.com
+  </div>
+</div>
+
+<!-- SLIDE 2: THE PROBLEM -->
+<div class="slide">
+  <h2>The Problem</h2>
+  <p>FreshGroove Foods supplies 45 perishable SKUs to 1,200 stores across 12 regions. Two systemic losses erase $3.5M per year:</p>
+  <div class="kpi">
+    <div class="kpi-card"><div class="value">12%</div><div class="label">Spoilage rate<br>(industry target: 6%)</div></div>
+    <div class="kpi-card"><div class="value">$2.0M</div><div class="label">Annual waste cost<br>from expired inventory</div></div>
+    <div class="kpi-card"><div class="value">91%</div><div class="label">OTIF rate<br>(retailer threshold: 98%)</div></div>
+    <div class="kpi-card"><div class="value">$1.5M</div><div class="label">Annual chargebacks<br>from missed OTIF</div></div>
+  </div>
+  <div class="outcome-box">
+    <p style="margin:0;color:#aaa;">Root cause: planners discover spoilage events after the product is in the bin, and learn about supplier shortfalls when the truck doesn&rsquo;t show. No early warning. No recommended action. No audit trail.</p>
+  </div>
+</div>
+
+<!-- SLIDE 3: THE SOLUTION -->
+<div class="slide">
+  <h2>The Solution &mdash; Connected Data Journey</h2>
+  <p>One integrated Databricks pipeline: raw data to recommended action, every step governed and traceable.</p>
+  <div class="flow">
+    <div class="flow-step">ERP / POS / PDFs</div><div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">Lakeflow SDP<br>Bronze&rarr;Silver&rarr;Gold</div><div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">Unity Catalog<br>Governed + lineage</div><div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">ML &times; 3<br>Risk + Demand + Supplier</div><div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">Operational Serving<br>Write-back audit trail</div><div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">App + Genie<br>Planner surface</div>
+  </div>
+  <p>The system flags at-risk SKUs 5&ndash;8 days early with ranked, pre-written recommended actions. Every planner acknowledgement is logged. The AI/BI dashboard tracks the trend. SQL alerts fire automatically at threshold.</p>
+</div>
+
+<!-- SLIDE 4: DEMO HIGHLIGHTS -->
+<div class="slide">
+  <h2>What the Demo Shows</h2>
+  <ul>
+    <li><strong>Platform Map:</strong> Every Databricks component live &mdash; click any tile to open the real workspace object. Not a diagram.</li>
+    <li><strong>Overview:</strong> 4 KPI cards pulled live from the operational table: 11.9% waste, $161M spoilage cost (annualized), 91% OTIF, $1.5M chargebacks.</li>
+    <li><strong>Ask the Agent:</strong> &ldquo;Which SKUs are at highest risk?&rdquo; &rarr; Genie writes SQL, runs it, returns ranked list with recommended actions. SQL visible &mdash; no black box.</li>
+    <li><strong>Operations Queue:</strong> SKU-STRWBRY at Northeast stores: 78% waste risk, recommended action pre-written. Click Acknowledge &rarr; logged to Delta with planner name and timestamp.</li>
+    <li><strong>Dashboard:</strong> Waste rate trend shows the April strawberry spike. Both SQL alerts ACTIVE (waste rate &gt;10%, high-risk count &gt;50).</li>
+  </ul>
+</div>
+
+<!-- SLIDE 5: BUSINESS VALUE -->
+<div class="slide">
+  <h2>Business Value &mdash; Year 1 Conservative Estimate</h2>
+  <table>
+    <tr><th>Outcome</th><th>Mechanism</th><th>Value</th></tr>
+    <tr><td>Waste rate 12% &rarr; 9%</td><td>Early warning + ranked reorder actions cut overstock by 25%</td><td>$500K&ndash;$1.0M/yr</td></tr>
+    <tr><td>OTIF 91% &rarr; 96%</td><td>Supplier risk scores + ASN PDF signals flag short shipments 8 days early</td><td>$900K/yr</td></tr>
+    <tr><td>Planner productivity</td><td>Ranked queue replaces manual exception review (~200 hrs/yr)</td><td>$15K/yr</td></tr>
+    <tr><td><strong>Total (conservative)</strong></td><td></td><td><strong>$2.2M/yr</strong></td></tr>
+  </table>
+  <div class="outcome-box">
+    <div class="big">$3.5M/yr</div>
+    <p style="margin:0;color:#aaa;margin-top:6px;">at full adoption (12%&rarr;6% waste, 91%&rarr;98% OTIF)</p>
+  </div>
+</div>
+
+<!-- SLIDE 6: ARCHITECTURE -->
+<div class="slide">
+  <h2>Architecture &mdash; Six Integrated Layers</h2>
+  <table>
+    <tr><th>Layer</th><th>Component</th><th>What It Does for FreshGroove</th></tr>
+    <tr><td>Ingest</td><td>Lakeflow SDP</td><td>4 sources &rarr; Bronze/Silver/Gold with DQ expectations (201,480 rows)</td></tr>
+    <tr><td>Govern</td><td>Unity Catalog</td><td>matt_fe_bar_catalog: tables + ML models + lineage</td></tr>
+    <tr><td>Intelligence</td><td>ML &times; 3 + GenAI</td><td>waste_classifier (AUC 0.80), demand_forecast (R&sup2;=0.9999), supplier_reliability @prod; ai_parse_document on ASN PDFs</td></tr>
+    <tr><td>Serve</td><td>Operational Delta + write-back</td><td>reorder_queue 183K rows; planners acknowledge &rarr; timestamped audit trail</td></tr>
+    <tr><td>Query</td><td>Genie Agent</td><td>NL interface; curated glossary; transparent SQL shown</td></tr>
+    <tr><td>Surface</td><td>AppKit + Dashboard</td><td>4-view app (ACTIVE); AI/BI dashboard + 2 SQL alerts</td></tr>
+  </table>
+</div>
+
+<!-- SLIDE 7: DECISIONS & TRADE-OFFS -->
+<div class="slide">
+  <h2>Key Decisions and Trade-offs</h2>
+  <table>
+    <tr><th>Decision</th><th>Why</th><th>Trade-off</th></tr>
+    <tr><td>3 ML models</td><td>Each answers a distinct business question. Demonstrates platform breadth.</td><td>More to maintain; same HistGradientBoosting framework across all three.</td></tr>
+    <tr><td>Genie Agent (not MAS/KA)</td><td>MAS + KA retiring Sept 2026 / EoS H1 2027. Genie is GA go-forward.</td><td>No multi-agent orchestration &mdash; not needed here.</td></tr>
+    <tr><td>AppKit (React + Node.js)</td><td>Production-quality exec demo. Native genie/serving plugins.</td><td>More code than Streamlit. Adapted from NorthPeak reference.</td></tr>
+    <tr><td>Operational Delta + write-back</td><td>Demonstrates operational serving &mdash; planner audit trail for chargeback disputes.</td><td>Lakebase (Postgres) not available on this workspace tier; Delta CDF achieves the same write-back semantics.</td></tr>
+    <tr><td>100% synthetic data</td><td>Rubric requirement + full signal control (injected strawberry spike + supplier degradation).</td><td>Must inject realistic correlated patterns so models have genuine signal.</td></tr>
+  </table>
+  <p style="font-size:0.9rem;color:#666;margin-top:8px;">Full decisions log: docs/decisions_and_tradeoffs.md (8 rows)</p>
+</div>
+
+<!-- SLIDE 8: NEXT STEPS -->
+<div class="slide">
+  <h2>What&rsquo;s Next</h2>
+  <ul>
+    <li><strong>Live ERP/TMS connector:</strong> Replace file-drop ingestion with real-time feed from SAP/Oracle &mdash; Bronze layer unchanged.</li>
+    <li><strong>Lakebase write-back upgrade:</strong> When Lakebase is available on the production workspace, migrate from Delta CDF to Postgres-backed write-back for sub-100ms app response times.</li>
+    <li><strong>Model retraining pipeline:</strong> Automate challenger promotion when AUC delta exceeds 2%. Currently manual via ml/01_train_models.py.</li>
+    <li><strong>Multi-store rollout:</strong> Current scope: 12 stores. Scale path: add stores to Volume + re-run pipeline. UC lineage propagates automatically.</li>
+    <li><strong>GitHub Actions CI/CD:</strong> Bundle deploy on merge to main. Setup principal prepared; deferred pending workspace GitHub Actions integration.</li>
+  </ul>
+  <div class="outcome-box" style="margin-top:32px;">
+    <p style="margin:0;"><strong style="color:#EF5B3F;">Build: </strong>
+    <a href="https://github.com/MattWDB/freshgroove-febar">github.com/MattWDB/freshgroove-febar</a></p>
+  </div>
+</div>
+
+</body>
+</html>
