@@ -1,0 +1,48 @@
+=== DASHBOARD CREATED ===
+Dashboard ID: 01f1ddd68ed8119a9b9328fd0c5c414b
+Dashboard URL: https://fevm-matt-fe-bar.cloud.databricks.com/dashboards/01f1ddd68ed8119a9b9328fd0c5c414b
+Display name: FreshGroove Waste Risk Control Tower
+Lifecycle state: ACTIVE
+Charts: 6
+  1. Waste Rate KPI (last 30 days) — counter widget
+  2. High-Risk SKUs KPI (last 7 days) — counter widget
+  3. Waste Rate by Month with April Strawberry Spike — area chart
+  4. Worst Suppliers by Spoilage Rate — bar chart
+  5. High-Risk SKUs by Store (last 7 days) — bar chart
+  6. Top 10 Waste Risks This Week — table widget
+Datasets: 5 (ds_waste_rate, ds_high_risk, ds_monthly_trend, ds_supplier, ds_top_risks)
+Created: 2026-11-11
+
+=== ALERT 1: Waste Rate > 10% ===
+Alert ID: 02f25caa-2985-48ed-a584-50c3cd616101
+Query ID: 522f1665-4baa-4045-b066-fd4c577beeca
+Display name: FreshGroove: Waste Rate > 10%
+Condition: waste_rate_pct > 10.0
+SQL: SELECT ROUND(AVG(spoilage_pct)*100,1) as waste_rate_pct
+     FROM matt_fe_bar_catalog.gold.gold_waste_risk_features
+     WHERE date >= (SELECT MAX(date) FROM matt_fe_bar_catalog.gold.gold_waste_risk_features) - INTERVAL 7 DAYS
+Schedule: Daily 8am US/Eastern
+Notification: matthew.walding@databricks.com
+
+=== ALERT 2: High-Risk SKU Count > 50 ===
+Alert ID: 15119d78-e901-49c4-879e-e78474e752c6
+Query ID: 3cf6f500-46c8-461f-a253-b402f40682a2
+Display name: FreshGroove: High-Risk SKU Count > 50
+Condition: high_risk_count > 50.0
+SQL: SELECT COUNT(*) as high_risk_count
+     FROM matt_fe_bar_catalog.gold.waste_risk_scores
+     WHERE risk_tier='HIGH'
+       AND date >= (SELECT MAX(date) FROM matt_fe_bar_catalog.gold.waste_risk_scores) - INTERVAL 7 DAYS
+Schedule: Daily 8am US/Eastern
+Notification: matthew.walding@databricks.com
+
+=== DASHBOARD QUERY VALIDATION ===
+waste_rate_pct (last 30 days): 11.9%   ✓ real data confirmed
+high_risk_count (last 7 days): 663     ✓ real data confirmed
+
+Both queries use MAX(date)-based windows because synthetic data ends 2026-03-31.
+
+=== APP REDEPLOYED WITH DASHBOARD_ID ===
+Deployment ID: 01f1ddd6d83e18c8ae19774971439ecd
+Status: SUCCEEDED — App started successfully
+DASHBOARD_ID=01f1ddd68ed8119a9b9328fd0c5c414b injected as env var

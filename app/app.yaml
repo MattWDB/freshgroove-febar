@@ -41,4 +41,4 @@ env:
   - name: WORKSPACE_HOST
     value: "https://fevm-matt-fe-bar.cloud.databricks.com"
   - name: DASHBOARD_ID
-    value: ""
+    value: "01f1ddd68ed8119a9b9328fd0c5c414b"
