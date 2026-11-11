@@ -1,0 +1,32 @@
+=== BUNDLE VALIDATE (dev target) ===
+Name: freshgroove-febar
+Target: dev
+Workspace:
+  Host: https://fevm-matt-fe-bar.cloud.databricks.com
+  User: matthew.walding@databricks.com
+  Path: /Workspace/Users/matthew.walding@databricks.com/.bundle/freshgroove-febar/dev
+
+Validation OK!
+
+=== BUNDLE VALIDATE (prod target) ===
+Recommendation: target with 'mode: production' should set 'workspace.root_path' to make sure only one copy is deployed
+
+Name: freshgroove-febar
+Target: prod
+Workspace:
+  Host: https://fevm-matt-fe-bar.cloud.databricks.com
+  User: matthew.walding@databricks.com
+  Path: /Workspace/Users/matthew.walding@databricks.com/.bundle/freshgroove-febar/prod
+
+Found 1 recommendation (no errors)
+
+=== BUNDLE STRUCTURE ===
+Resources defined:
+- pipelines.freshgroove_pipeline → freshgroove-pipeline (catalog: matt_fe_bar_catalog, serverless, 3 notebooks)
+- apps.freshgroove_app → freshgroove-app (source: ./app)
+# model_serving_endpoints.waste_scorer → managed outside bundle (created via API in Session 4)
+
+Variables:
+- catalog (default: matt_fe_bar_catalog)
+- warehouse_id (default: 13d586337d2fb9b5)
+- genie_space_id (default: 01f1dd14a9e21327992887fd1d1ede03)

@@ -1,3 +1,48 @@
 bundle:
   name: freshgroove-febar
-  target: dev
+
+variables:
+  catalog:
+    default: matt_fe_bar_catalog
+  warehouse_id:
+    default: "13d586337d2fb9b5"
+  genie_space_id:
+    default: "01f1dd14a9e21327992887fd1d1ede03"
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://fevm-matt-fe-bar.cloud.databricks.com
+      profile: fe-bar
+
+  prod:
+    mode: production
+    workspace:
+      host: https://fevm-matt-fe-bar.cloud.databricks.com
+      profile: fe-bar
+
+resources:
+  pipelines:
+    freshgroove_pipeline:
+      name: freshgroove-pipeline
+      catalog: ${var.catalog}
+      serverless: true
+      development: false
+      libraries:
+        - notebook:
+            path: /Workspace/Users/matthew.walding@databricks.com/freshgroove-febar/pipelines/01_bronze_ingest
+        - notebook:
+            path: /Workspace/Users/matthew.walding@databricks.com/freshgroove-febar/pipelines/02_silver_clean
+        - notebook:
+            path: /Workspace/Users/matthew.walding@databricks.com/freshgroove-febar/pipelines/03_gold_agg
+
+  # endpoint managed outside bundle (created via API in Session 4)
+  # model_serving_endpoints.waste_scorer → freshgroove-waste-scorer
+
+  apps:
+    freshgroove_app:
+      name: freshgroove-app
+      source_code_path: ./app
+      description: "FreshGroove Perishable Control Tower — waste risk management app"

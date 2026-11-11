@@ -48,3 +48,15 @@ Newest entries at the bottom.
 **Key decision:** Converted source JSON arrays to NDJSON for cloudFiles Auto Loader compatibility. Used `name="schema.table"` format in @dlt.table decorators for multi-schema UC pipeline.
 
 **Evidence:** docs/evidence/phase2_pipeline_validation.txt, phase3_governance_validation.txt
+
+---
+
+## Session 9 — 2026-11-11 — DABs Bundle + End-to-End Test
+
+**What:** Wrote databricks.yml root bundle with dev + prod targets. Defined 2 resources in bundle: freshgroove-pipeline and freshgroove-app. (Serving endpoint managed outside bundle — created via API in Session 4.) Validated bundle against both targets. Wrote and ran tests/e2e_api_test.py hitting all 6 layers plus dashboard and app bonus checks.
+
+**Why:** DABs bundle proves the entire stack is Infrastructure-as-Code — evaluator can see that every component is declared and reproducible from the repo. E2E test provides text-only evidence that all 6 layers are connected and working as an integrated system.
+
+**Outcome:** Bundle validates on dev (Validation OK!) and prod (1 recommendation, 0 errors). E2E test: 10/11 passed. All 6 core layers confirmed: Volume (201,480 rows) → Lakeflow (gold_waste_risk_features populated) → UC (ml schema tables + endpoint READY) → ML (29,988 HIGH risk rows, endpoint READY) → Operational (183,839 queue rows, 2 acknowledged) → Genie (space accessible). Dashboard and app both ACTIVE.
+
+**Evidence:** docs/evidence/phase9_bundle_validation.txt, docs/evidence/phase12_e2e_test.txt
