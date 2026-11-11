@@ -1,0 +1,42 @@
+{
+  // FreshGroove Perishable Control Tower — app config
+  "masEndpointName": "",
+  "genieSpaceId": "${GENIE_SPACE_ID:01f1dd14a9e21327992887fd1d1ede03}",
+  "agentModel": "${AGENT_MODEL:databricks-claude-sonnet-5}",
+  "mlflowExperimentId": "",
+  "agentMlflowExperimentPath": "${AGENT_MLFLOW_EXPERIMENT_PATH:}",
+  "dashboardId": "${DASHBOARD_ID:}",
+  "pipelineId": "${PIPELINE_ID:f668d89e-d740-4352-9d26-f85022fbe3e4}",
+  "warehouseId": "${WAREHOUSE_ID:13d586337d2fb9b5}",
+  "kaEndpointName": "",
+  "lakebaseProjectId": "${CATALOG:matt_fe_bar_catalog}.gold",
+  "appUrl": "${APP_URL:}",
+  "pdfVolumePath": "/Volumes/matt_fe_bar_catalog/bronze/raw_landing/supplier_asn_pdfs",
+  "mlModelName": "${CATALOG:matt_fe_bar_catalog}.ml.waste_classifier",
+  "data": {
+    "catalog": "${CATALOG:matt_fe_bar_catalog}",
+    "schema": "gold",
+    "tables": {
+      "reorderQueue":    "reorder_queue",
+      "kpiLive":         "kpi_live",
+      "wasteRiskScores": "waste_risk_scores",
+      "supplierRisk":    "gold_supplier_risk"
+    }
+  },
+  "branding": {
+    "appName": "FreshGroove Perishable Control Tower"
+  },
+  "assistantScript": [
+    {
+      "prompt": "Which SKUs are at highest waste risk this week?"
+    },
+    {
+      "prompt": "What is our current waste rate and spoilage cost?",
+      "triggerAfter": ["risk", "SKU", "waste", "HIGH"]
+    },
+    {
+      "prompt": "Which suppliers are most unreliable and what should we do?",
+      "triggerAfter": ["waste rate", "spoilage", "percent"]
+    }
+  ]
+}

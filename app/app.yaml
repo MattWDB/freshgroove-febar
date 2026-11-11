@@ -1,0 +1,44 @@
+name: freshgroove-app
+description: "FreshGroove Perishable Control Tower — waste risk management for CPG grocery"
+
+command: ['node', '--env-file-if-exists=.env', 'dist/server.js']
+
+user_authorization:
+  scopes:
+    - sql
+    - genie
+    - catalog.catalogs:read
+    - catalog.schemas:read
+    - catalog.tables:read
+
+resources:
+  - name: sql-warehouse
+    sql_warehouse:
+      id: 13d586337d2fb9b5
+      permission: CAN_USE
+  - name: waste-scorer
+    serving_endpoint:
+      name: freshgroove-waste-scorer
+      permission: CAN_QUERY
+
+env:
+  - name: NODE_ENV
+    value: production
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: GENIE_SPACE_ID
+    value: "01f1dd14a9e21327992887fd1d1ede03"
+  - name: PIPELINE_ID
+    value: "f668d89e-d740-4352-9d26-f85022fbe3e4"
+  - name: CATALOG
+    value: "matt_fe_bar_catalog"
+  - name: MODEL_ENDPOINT
+    value: "freshgroove-waste-scorer"
+  - name: ORG_ID
+    value: "7474655831226413"
+  - name: WORKSPACE_HOST
+    value: "https://fevm-matt-fe-bar.cloud.databricks.com"
+  - name: DASHBOARD_ID
+    value: ""
