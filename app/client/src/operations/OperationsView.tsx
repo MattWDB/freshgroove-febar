@@ -1,258 +1,239 @@
 /**
- * The Operations page — the WRITE SURFACE for the use case.
- *
- * Template intent: every use case has a "work queue" — rows waiting for a
- * decision + an audit trail of what happened. This page renders that queue
- * from Lakebase (live, writable, transactional) and stays in sync with the
- * agent's actions via the `dataMutated` pub/sub (when the chat stream
- * completes, the queue refetches — so you literally WATCH the agent's
- * writes land here).
- *
- * Responsibility: orchestration only — owns filter/selection state, fetches
- * data, subscribes to `dataMutated`. Sub-components render the pieces:
- *
- *    KpiCards       — lost-sales / markdown / open waste_risks at a glance
- *    StoreMap       — per-store status map, click to filter
- *    Waste RiskTable — filterable queue, click a row to open the drawer
- *    PositionDrawer — slide-over with 3 tabs (Waste Risk / Store / Activity)
- *
- * The "Ask the assistant about this spike" banner at the top is the
- * contextual bridge back into the floating dock — clicking it opens the
- * assistant with a scripted prompt prefilled.
+ * Operations — FreshGroove perishable waste reorder queue.
+ * Fetches /api/kpis and /api/queue (direct SQL, no migration gate).
  */
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
-import { Sparkles, ArrowRight } from 'lucide-react';
-import { fetchPositions, fetchPositionSummary } from '@/lib/stores';
-import { useSession } from '@/lib/api';
-import { dataMutated } from '@/lib/events';
+import { useEffect, useState } from 'react';
+import { Sparkles, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
 import { dockController } from '@/chat/dockController';
-import type {
-  PositionRow,
-  PositionStatus,
-  PositionSummary,
-} from '@/shared/types';
 
-import { StoreMap } from './StoreMap';
-import { KpiCards } from './KpiCards';
-import { WasteRiskTable } from './ShortfallTable';
-import { PositionDrawer } from './PositionDrawer';
-import { IngestionFlow } from '@/architecture/IngestionFlow';
+type KpiRow = { metric_name: string; metric_value: string; metric_label: string };
+type QueueRow = {
+  queue_id: number;
+  store_id: string;
+  sku_id: string;
+  sku_name: string;
+  category: string;
+  region: string;
+  supplier_id: string;
+  waste_risk_score: number;
+  risk_tier: string;
+  recommended_action: string;
+  on_hand_units: number;
+  status: string;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+};
+
+function useApi<T>(url: string, deps: unknown[] = []) {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(url)
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body?.error ?? `HTTP ${r.status}`);
+        return body as T;
+      })
+      .then((d) => { setData(d); setError(null); })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return { data, error, loading, reload: () => setLoading(true) };
+}
 
 export function OperationsView() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const storeFromUrl = searchParams.get('store') ?? '';
-  const skuFromUrl = searchParams.get('sku') ?? '';
+  const { data: kpis, error: kpisError } = useApi<KpiRow[]>('/api/kpis');
+  const { data: queue, error: queueError, loading: queueLoading } = useApi<QueueRow[]>('/api/queue');
+  const [ackingId, setAckingId] = useState<number | null>(null);
+  const [acked, setAcked] = useState<Set<number>>(new Set());
 
-  const [filter, setFilter] = useState<PositionStatus | 'all' | 'recovery'>(
-    (searchParams.get('status') as PositionStatus | 'recovery' | null) ?? 'all',
-  );
-  const [storeFilter, setStoreFilter] = useState(storeFromUrl);
-  const [skuFilter, setSkuFilter] = useState(skuFromUrl);
-  const [zoneFilter, setZoneFilter] = useState<string | null>(
-    searchParams.get('zone') ?? null,
-  );
-  const [sort, setSort] = useState<'exposure' | 'velocity'>(
-    (searchParams.get('sort') as 'exposure' | 'velocity') ?? 'exposure',
-  );
-  const [search, setSearch] = useState('');
-
-  // Sync all queue filters → URL so deep links + back/forward work.
-  useEffect(() => {
-    const next = new URLSearchParams(searchParams);
-    const setOrDelete = (key: string, value: string | null) => {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    };
-    setOrDelete('store', storeFilter || null);
-    setOrDelete('sku', skuFilter || null);
-    setOrDelete('zone', zoneFilter);
-    setOrDelete('status', filter === 'all' ? null : filter);
-    setOrDelete('sort', sort === 'exposure' ? null : sort);
-    if (next.toString() !== searchParams.toString()) {
-      setSearchParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeFilter, skuFilter, zoneFilter, filter, sort]);
-
-  // Update state when URL changes (e.g. user clicks a link from Analytics).
-  useEffect(() => {
-    const urlStore = searchParams.get('store') ?? '';
-    if (urlStore !== storeFilter) setStoreFilter(urlStore);
-    const urlSku = searchParams.get('sku') ?? '';
-    if (urlSku !== skuFilter) setSkuFilter(urlSku);
-    const urlZone = searchParams.get('zone');
-    if (urlZone !== zoneFilter) setZoneFilter(urlZone);
-    const urlStatus = (searchParams.get('status') as PositionStatus | 'recovery' | null) ?? 'all';
-    if (urlStatus !== filter) setFilter(urlStatus);
-    const urlSort = (searchParams.get('sort') as 'exposure' | 'velocity') ?? 'exposure';
-    if (urlSort !== sort) setSort(urlSort);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  const [rows, setRows] = useState<PositionRow[]>([]);
-  const [summary, setSummary] = useState<PositionSummary | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { config } = useSession();
-
-  async function reload() {
-    setLoading(true);
+  async function acknowledge(row: QueueRow) {
+    setAckingId(row.queue_id);
     try {
-      // Convert 'recovery' filter to the actual API statusGroup
-      let statusParam: PositionStatus | undefined;
-      let statusGroup: 'open' | 'all' = 'all';
-      if (filter === 'recovery') {
-        // Recovery means we want all positions, then we filter client-side
-        statusGroup = 'all';
-      } else if (filter === 'all') {
-        statusGroup = 'all';
-      } else {
-        statusParam = filter;
-        statusGroup = 'all';
-      }
-
-      const [list, sum] = await Promise.all([
-        fetchPositions({
-          statusGroup,
-          status: statusParam,
-          zone: zoneFilter ?? undefined,
-          store: storeFilter || undefined,
-          sku: skuFilter || undefined,
-          sort,
-        }),
-        fetchPositionSummary(),
-      ]);
-      setRows(list);
-      setSummary(sum);
-      setError(null);
-    } catch (e) {
-      setError((e as Error).message);
+      await fetch('/api/acknowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queue_id: row.queue_id, user: 'planner@freshgroove.com' }),
+      });
+      setAcked((prev) => new Set([...prev, row.queue_id]));
+    } catch {
+      // silent — the row stays actionable
     } finally {
-      setLoading(false);
+      setAckingId(null);
     }
   }
 
-  useEffect(() => {
-    void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, storeFilter, skuFilter, zoneFilter, sort]);
-
-  useEffect(() => {
-    return dataMutated.subscribe(() => {
-      void reload();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, storeFilter, skuFilter, zoneFilter, sort]);
-
-  // Apply client-side filtering for "recovery in progress" (where liveMoveType is not null)
-  const filteredRows = useMemo(() => {
-    let result = rows;
-
-    // Status filter
-    if (filter === 'recovery') {
-      result = result.filter((r) => r.liveMoveType !== null);
-    }
-
-    // Search filter
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (r) =>
-          (r.storeName ?? '').toLowerCase().includes(q) ||
-          (r.city ?? '').toLowerCase().includes(q) ||
-          (r.productName ?? '').toLowerCase().includes(q) ||
-          (r.productId ?? '').toLowerCase().includes(q),
-      );
-    }
-
-    return result;
-  }, [rows, filter, search]);
+  const kpiMap = Object.fromEntries((kpis ?? []).map((k) => [k.metric_name, k]));
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6 sm:py-10 space-y-6 sm:space-y-8">
-        {/* Title + situation + CTA stack on the LEFT; the IngestionFlow
-            sits on the RIGHT spanning the full left stack — denser open
-            for the Operations page. Stacks under the title on smaller
-            screens. */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-4 lg:items-end">
-          <div className="flex flex-col gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                Store ops — waste_risk queue
-              </div>
-              <h1 className="display text-4xl font-semibold tracking-tight text-foreground mb-2">
-                Work the waste_risk backlog.
-              </h1>
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-8">
+
+        {/* Header */}
+        <section className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Perishable Ops — Reorder Queue
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-semibold leading-tight text-foreground">
+            Work the waste risk backlog.
+          </h1>
+          <p className="text-muted-foreground leading-relaxed max-w-2xl">
+            Every HIGH row is an SKU at elevated spoilage risk — overstock relative to shelf life.
+            Acknowledge the risk to log the corrective action and start the audit trail.
+          </p>
+        </section>
+
+        {/* Ask assistant banner */}
+        <button
+          onClick={() => dockController.newAndSend('Which SKUs are at highest waste risk this week and what should we do?')}
+          className="w-full flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4 text-sm hover:border-foreground/20 hover:shadow-sm transition-all text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="size-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}>
+              <Sparkles className="size-4" />
             </div>
-            <p className="text-muted-foreground max-w-2xl">
-              Every red store is a top product a customer came in for and left without.
-              Every amber store is margin about to be discounted away.
-            </p>
-            {config?.assistantScript?.[0] && (
-              <button
-                onClick={() =>
-                  dockController.openAndSend(config.assistantScript[0].prompt)
-                }
-                className="w-full text-left rounded-xl border border-border bg-card hover:border-foreground/30 hover:shadow-sm px-5 py-4 transition-all flex items-center gap-4 group"
-              >
-                <div
-                  className="size-10 rounded-full flex items-center justify-center shrink-0"
-                  style={{
-                    background: 'var(--primary)',
-                    color: 'var(--primary-foreground)',
-                  }}
-                >
-                  <Sparkles className="size-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                    Ask the assistant
+            <div>
+              <div className="font-medium text-foreground">Ask the assistant</div>
+              <div className="text-xs text-muted-foreground">About the top waste risks this week</div>
+            </div>
+          </div>
+          <ArrowRight className="size-4 text-muted-foreground shrink-0" />
+        </button>
+
+        {/* KPI cards */}
+        {kpisError ? (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+            KPIs unavailable: {kpisError}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { key: 'waste_rate', label: 'Waste rate', suffix: '%' },
+              { key: 'spoilage_cost_annual', label: 'Annual spoilage cost', prefix: '$', suffix: 'M' },
+              { key: 'otif_rate', label: 'OTIF rate', suffix: '%' },
+              { key: 'chargeback_cost_annual', label: 'Annual chargebacks', prefix: '$', suffix: 'M' },
+            ].map(({ key, label, prefix = '', suffix = '' }) => {
+              const kpi = kpiMap[key];
+              return (
+                <div key={key} className="rounded-xl border border-border bg-card p-5 space-y-1">
+                  <div className="text-2xl font-bold text-foreground">
+                    {kpi ? `${prefix}${kpi.metric_value}${suffix}` : '—'}
                   </div>
-                  <div className="text-sm font-medium text-foreground mt-0.5">
-                    About this waste_risk spike
-                  </div>
+                  <div className="text-xs text-muted-foreground">{kpi?.metric_label ?? label}</div>
                 </div>
-                <ArrowRight className="size-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-              </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Reorder queue table */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Reorder queue — HIGH + MEDIUM risk
+            </div>
+            {queueLoading && (
+              <div className="text-xs text-muted-foreground">Loading…</div>
             )}
           </div>
-          <IngestionFlow />
-        </div>
 
-        {summary && <KpiCards summary={summary} />}
+          {queueError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              {queueError}
+            </div>
+          )}
 
-        <StoreMap statusGroup="all" zone={zoneFilter ?? undefined} onSelectStore={setStoreFilter} />
-
-        <WasteRiskTable
-          rows={filteredRows}
-          loading={loading}
-          error={error}
-          statusFilter={filter}
-          onStatusFilter={setFilter}
-          search={search}
-          onSearch={setSearch}
-          zone={zoneFilter ?? undefined}
-          onZoneFilter={setZoneFilter}
-          sort={sort}
-          onSortChange={setSort}
-          onSelect={setSelectedId}
-        />
+          {!queueError && !queueLoading && queue && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">SKU</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Store / Region</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Risk</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Recommended action</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {queue.map((row) => {
+                    const isAcked = acked.has(row.queue_id) || row.status === 'acknowledged';
+                    return (
+                      <tr key={row.queue_id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-foreground">{row.sku_id}</div>
+                          <div className="text-xs text-muted-foreground">{row.sku_name} · {row.category}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-foreground">{row.store_id}</div>
+                          <div className="text-xs text-muted-foreground">{row.region}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                              style={{
+                                background: row.risk_tier === 'HIGH' ? 'rgba(239,91,63,0.12)' : 'rgba(234,179,8,0.12)',
+                                color: row.risk_tier === 'HIGH' ? '#ef5b3f' : '#ca8a04',
+                              }}
+                            >
+                              {row.risk_tier}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {(Number(row.waste_risk_score) * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{row.on_hand_units} units on hand</div>
+                        </td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                            {row.recommended_action}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {isAcked ? (
+                            <div className="flex items-center gap-1 text-xs text-green-600">
+                              <CheckCircle2 className="size-3.5" />
+                              Acknowledged
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="size-3.5" />
+                              Pending
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {!isAcked && (
+                            <button
+                              onClick={() => acknowledge(row)}
+                              disabled={ackingId === row.queue_id}
+                              className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-foreground/30 hover:shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {ackingId === row.queue_id ? 'Saving…' : 'Acknowledge'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {queue.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No high or medium risk items in the queue.
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       </div>
-
-      <PositionDrawer
-        id={selectedId}
-        open={selectedId !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedId(null);
-        }}
-        onMutated={() => {
-          setSelectedId(null);
-          void reload();
-        }}
-      />
     </div>
   );
 }

@@ -441,6 +441,9 @@ await createApp({
     // a standalone param typed as the generic createApp return collapses
     // appkit.server/.analytics to `never`.
     appkit.server.extend((app) => {
+  // FreshGroove direct-SQL routes — bypass the migration gate entirely.
+  registerFreshgrooveRoutes(app);
+
   // Gate DB-dependent routes until migrations are ready. Lives BEFORE
   // route registration so it applies to every /api/* handler.
   app.use('/api', async (req, res, next) => {
@@ -495,7 +498,6 @@ await createApp({
       agentModel: appConfig.agentModel,
     },
   });
-  registerFreshgrooveRoutes(app);
   registerStoreRoutes(app, { db });
   registerActivityRoutes(app, { db });
   registerAdminRoutes(app, { db, data: appConfig.data });
