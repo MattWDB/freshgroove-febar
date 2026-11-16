@@ -80,6 +80,11 @@ interface ChartsDeps {
 // Query key → filename. Only these keys are runnable (closed allowlist —
 // no arbitrary file reads from a user-supplied key).
 const QUERY_FILES: Record<string, string> = {
+  // FreshGroove queries
+  waste_rate_trend: 'waste_rate_trend.sql',
+  risk_by_category: 'risk_by_category.sql',
+  worst_waste_risks: 'worst_waste_risks.sql',
+  // NorthPeak originals kept for backwards compat
   cold_weather_velocity_trend: 'cold_weather_velocity_trend.sql',
   worst_shortfalls: 'worst_shortfalls.sql',
   position_mix_by_zone: 'position_mix_by_zone.sql',

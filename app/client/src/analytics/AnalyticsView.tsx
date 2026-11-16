@@ -104,16 +104,16 @@ export function AnalyticsView() {
         {/* Top row: two charts side-by-side. Trend (wider) + zone mix. */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <ChartCard
-            title="Cold weather demand trend"
-            scope="Last 12 weeks"
+            title="Monthly waste rate trend"
+            scope="Spoilage % over time — April strawberry spike visible"
             className="lg:col-span-3"
           >
-            <ChartData chartKey="cold_weather_velocity_trend" height={260}>
+            <ChartData chartKey="waste_rate_trend" height={260}>
               {(rows) => (
                 <LineChart
                   data={rows}
-                  xKey="week"
-                  yKey="units_sold"
+                  xKey="month"
+                  yKey="waste_rate_pct"
                   colors={[BRAND_PALETTE[0]]}
                   height={260}
                   smooth
@@ -123,16 +123,16 @@ export function AnalyticsView() {
           </ChartCard>
 
           <ChartCard
-            title="Position mix by climate zone"
-            scope="All time"
+            title="Risk by category"
+            scope="HIGH + MEDIUM rows in reorder queue"
             className="lg:col-span-2"
           >
-            <ChartData chartKey="position_mix_by_zone" height={260}>
+            <ChartData chartKey="risk_by_category" height={260}>
               {(rows) => (
                 <BarChart
                   data={rows}
-                  xKey="climate_zone"
-                  yKey="position_count"
+                  xKey="category"
+                  yKey="sku_count"
                   colors={[BRAND_PALETTE[0]]}
                   height={260}
                 />
@@ -141,7 +141,7 @@ export function AnalyticsView() {
           </ChartCard>
         </div>
 
-        <ChartCard title="Worst waste_risks" scope="By exposure" flush>
+        <ChartCard title="Top waste risks this week" scope="Ordered by risk score" flush>
           <ChartData<WorstWasteRiskRow> chartKey="worst_waste_risks" height={300}>
             {(rows) => (
               <WorstWasteRisksTable rows={rows} />

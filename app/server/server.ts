@@ -505,17 +505,18 @@ await createApp({
   // Analytics charts — custom route that substitutes catalog/schema into the
   // SQL (the AppKit analytics plugin can't template identifiers). Served at
   // /api/charts/<key>; AnalyticsView feeds the rows to charts via `data`.
-  if (appConfig.data) {
-    registerChartRoutes(app, {
-      query: (sql, params) => appkit.analytics.query(sql, params),
-      catalog: appConfig.data.catalog,
-      schema: appConfig.data.schema,
-      queriesDir: resolve(
-        dirname(fileURLToPath(import.meta.url)),
-        '../config/queries',
-      ),
-    });
-  }
+  // Always register chart routes — FreshGroove catalog/schema hardcoded here
+  // since we removed the data block from app.json (that schema expected NorthPeak
+  // table names; FreshGroove uses freshgroove.ts direct-SQL routes instead).
+  registerChartRoutes(app, {
+    query: (sql, params) => appkit.analytics.query(sql, params),
+    catalog: process.env.CATALOG ?? 'matt_fe_bar_catalog',
+    schema: 'gold',
+    queriesDir: resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '../config/queries',
+    ),
+  });
 
   if (process.env.DEV_CLIENT_ERROR_LOG === '1') {
     registerDevLogRoutes(app, logErrorCompact);
