@@ -25,9 +25,9 @@ env:
   - name: NODE_ENV
     value: production
   - name: DATABRICKS_WAREHOUSE_ID
-    valueFrom: sql-warehouse
+    value: "13d586337d2fb9b5"
   - name: WAREHOUSE_ID
-    valueFrom: sql-warehouse
+    value: "13d586337d2fb9b5"
   - name: GENIE_SPACE_ID
     value: "01f1dd14a9e21327992887fd1d1ede03"
   - name: PIPELINE_ID
@@ -44,3 +44,13 @@ env:
     value: "https://fevm-matt-fe-bar.cloud.databricks.com"
   - name: DASHBOARD_ID
     value: "01f1ddd68ed8119a9b9328fd0c5c414b"
+  - name: PGHOST
+    value: "localhost"
+  - name: PGDATABASE
+    value: "freshgroove"
+  - name: PGPORT
+    value: "5432"
+  - name: PGSSLMODE
+    value: "require"
+  - name: LAKEBASE_ENDPOINT
+    value: "https://fevm-matt-fe-bar.cloud.databricks.com"

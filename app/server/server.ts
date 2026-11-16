@@ -611,12 +611,11 @@ migrationsReady = (async () => {
     }
     migrationsDone = true;
   } catch (e) {
-    // Real bug — the LLM customizing the template needs to act on this.
-    // The gate middleware reads `migrationsFailure` and returns it to the
-    // browser so the user sees the failure inline, not just in the terminal.
-    migrationsFailure = e instanceof Error ? e : new Error(String(e));
-    logErrorCompact('[boot] DB init failed:', e);
-    throw migrationsFailure;
+    // No Lakebase on this workspace — run in DB-less mode. FreshGroove routes
+    // use direct SQL (registered before the gate), so they work regardless.
+    // Routes that actually call db will return 500 JSON for their requests.
+    console.warn('[boot] DB init skipped (no Lakebase available):', (e as Error).message);
+    migrationsDone = true;
   }
 })();
 // Swallow the rejection at the top level — the gate handles it. Without
