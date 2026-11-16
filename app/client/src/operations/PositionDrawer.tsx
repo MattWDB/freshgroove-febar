@@ -21,7 +21,7 @@ import { dataMutated } from '@/lib/events';
 import { StatusBadge } from '@/shared/badges';
 import type { PositionDetail } from '@/shared/types';
 
-import { Waste RiskTab } from './tabs/Waste RiskTab';
+import { WasteRiskTab } from './tabs/ShortfallTab';
 import { StoreTab } from './tabs/StoreTab';
 import { ActivityTab } from './tabs/ActivityTab';
 
@@ -105,7 +105,7 @@ export function PositionDrawer({ id, open, onOpenChange, onMutated }: Props) {
                 value="waste_risk"
                 className="flex-1 overflow-y-auto px-8 py-6"
               >
-                <Waste RiskTab detail={detail} onMutated={onMutated} />
+                <WasteRiskTab detail={detail} onMutated={onMutated} />
               </TabsContent>
               <TabsContent
                 value="store"

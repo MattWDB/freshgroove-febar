@@ -14,6 +14,7 @@
  * auto-sends a scripted prompt. That's the "see the demo in action" path.
  */
 import { Fragment, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
   AlertTriangle,
   ArrowRight,
@@ -40,31 +41,32 @@ import { AgentLoopFlow } from '@/architecture/AgentLoopFlow';
 // ---------------------------------------------------------------------------
 
 const HERO = {
-  name: 'Dana Ruiz',
-  role: 'VP Category Management · FreshGroove Foods',
+  name: 'Priya Sharma',
+  role: 'VP Perishable Operations · FreshGroove Foods',
 };
 
 const STORY = {
-  headline: 'Sold out in the North, dead stock in the South.',
+  headline: 'Strawberry season, and the Northeast is about to waste $80K.',
   situation:
-    'An early cold snap three weeks ago flipped cold-weather-apparel demand. ~30 northern stores are at zero on the same 5 SKUs while ~40 southern stores sit on surplus — ~$4.8M lost-sales exposure against a ~$5.6M markdown clock. Regional managers pinged me this morning.',
-  goal: 'Find the worst waste_risks, get the recovery move, approve the transfer.',
+    'SKU-STRWBRY is at 78% waste risk across 8 Northeast stores — overshot the seasonal peak with 5 days to expiry. Supplier SUP-0001 is running late again. The reorder queue has 183K rows; 29K are HIGH priority. Planners are working manually through it.',
+  goal: 'Find the highest-risk SKUs, get the recommended actions, acknowledge and act.',
 };
 
 const STARTER_QUESTIONS = [
-  'Where are we short and where are we over-stocked?',
-  'Why is Store 214 out of the Summit Down Parka?',
-  "What's the best recovery move for Store 214?",
+  'Which SKUs are at highest waste risk this week?',
+  'What is our current waste rate and spoilage cost?',
+  'Which suppliers are most unreliable and what should we do?',
 ];
 
 // The featured action's copy is inlined in the JSX below — the section is just
 // HTML, edit it freely. The prompt text is the single thing the agent runs.
 const FEATURED_ACTION_PROMPT =
-  "Store 214 is short on the Summit Down Parka. Investigate why, rank the recovery moves with the model (transfer vs expedite vs substitute), draft the transfer request, and wait for my approval before recording it.";
+  'SKU-STRWBRY is at 78% waste risk in Northeast stores. Find the top at-risk positions, rank the response options by impact, and draft an action plan. I\'ll review before anything is recorded.';
 
 export function HomeView() {
   const { config, configError, retry: retrySession } = useSession();
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Activity feed errors are non-fatal (feed silently empty). Logged for
@@ -135,7 +137,7 @@ export function HomeView() {
           <div className="hidden sm:block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             A week of work · before noon
           </div>
-          <JourneyDiagram heroName={heroFirstName} script={config.assistantScript} />
+          <JourneyDiagram heroName={heroFirstName} script={config.assistantScript} navigate={navigate} />
 
           <AgentLoopFlow />
         </section>
@@ -180,14 +182,12 @@ export function HomeView() {
                 Let the assistant handle it
               </div>
               <h3 className="display text-2xl font-semibold mb-2 leading-tight">
-                Recover the northern shortage — ranked by model
+                Act on waste risk before the product expires — ranked by model
               </h3>
               <p className="hidden sm:block text-sm opacity-85 leading-relaxed mb-5 max-w-2xl">
-                The assistant identifies the 30 stores out of the top 5 SKUs,
-                ranks the recovery moves (transfer from southern surplus,
-                expedite from warehouse, substitute with available colorway),
-                and drafts the transfer request. You review and approve —
-                it records the action and watches it execute.
+                The assistant finds the highest-risk SKUs, surfaces pre-written recommended actions,
+                and helps you acknowledge each risk with one click — logging a timestamped audit trail
+                for every chargeback dispute.
               </p>
               <p className="sm:hidden text-sm opacity-85 leading-relaxed mb-5">
                 Identify waste_risks, rank recovery moves, draft requests —
@@ -216,27 +216,25 @@ export function HomeView() {
 function JourneyDiagram({
   heroName,
   script,
+  navigate,
 }: {
   heroName: string;
   script: ScriptStep[];
+  navigate: (to: string) => void;
 }) {
   const steps = [
     {
       icon: Eye,
       title: `${heroName} opens Operations`,
-      description: 'The waste_risk queue is waiting. Store map glowing red.',
-      action: () => {
-        // const nav = useNavigate() won't work here; we'd need to refactor.
-        // For now, just show a note that clicking navigates.
-        window.location.hash = '#/operations';
-      },
+      description: 'The reorder queue is live. 29K HIGH-risk rows. SKU-STRWBRY is at the top.',
+      action: () => navigate('/operations'),
       actionLabel: 'Navigate',
     },
     {
       icon: MessageCircleQuestion,
       title: `${heroName} asks the assistant`,
       description:
-        'Why is Store 214 out of stock on the Parka? The AI digs into velocity, replenishment, regional demand.',
+        'Which SKUs are at highest waste risk? The AI queries the governed gold tables and returns a ranked list.',
       action: () => {
         dockController.newAndSend(script[0]?.prompt ?? STARTER_QUESTIONS[0]);
       },
@@ -244,22 +242,22 @@ function JourneyDiagram({
     },
     {
       icon: Brain,
-      title: 'AI ranks the recovery move',
+      title: 'AI surfaces recommendations',
       description:
-        'Transfer from Store 387 in the South (best net value). Expedite from warehouse (faster). Substitute nearby colorway.',
+        'Reduce order by 120 units. Check backup supplier SUP-0007. Adjust 8 Northeast stores.',
       action: () => {
         dockController.open();
       },
-      actionLabel: 'View ranking',
+      actionLabel: 'View plan',
     },
     {
       icon: CheckCircle2,
-      title: `${heroName} approves the transfer`,
-      description: 'Done. Units ship from Store 387 to Store 214 by tomorrow.',
+      title: `${heroName} acknowledges the risk`,
+      description: 'Action logged to Delta with planner name and timestamp. Audit trail created.',
       action: () => {
         dockController.openAndSend(
           script[1]?.prompt ??
-            'Record the transfer from Store 387 to Store 214.',
+            'Acknowledge the SKU-STRWBRY waste risk and log the corrective action.',
         );
       },
       actionLabel: script[1]?.label ?? 'Record',

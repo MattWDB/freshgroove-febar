@@ -35,7 +35,7 @@ import type {
 
 import { StoreMap } from './StoreMap';
 import { KpiCards } from './KpiCards';
-import { Waste RiskTable } from './Waste RiskTable';
+import { WasteRiskTable } from './ShortfallTable';
 import { PositionDrawer } from './PositionDrawer';
 import { IngestionFlow } from '@/architecture/IngestionFlow';
 
@@ -226,7 +226,7 @@ export function OperationsView() {
 
         <StoreMap statusGroup="all" zone={zoneFilter ?? undefined} onSelectStore={setStoreFilter} />
 
-        <Waste RiskTable
+        <WasteRiskTable
           rows={filteredRows}
           loading={loading}
           error={error}

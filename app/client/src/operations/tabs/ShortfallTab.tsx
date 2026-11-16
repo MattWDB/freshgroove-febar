@@ -7,7 +7,7 @@ import { dockController } from '@/chat/dockController';
 import { MoveBadge } from '@/shared/badges';
 import type { PositionDetail } from '@/shared/types';
 
-export function Waste RiskTab({
+export function WasteRiskTab({
   detail,
   onMutated,
 }: {

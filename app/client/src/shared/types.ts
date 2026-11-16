@@ -95,7 +95,7 @@ export type RecoveryRecommendation = {
 };
 
 /** The nearest surplus store for a waste_risk (from `gold_reorder_queues`). */
-export type Waste Risk = {
+export type WasteRisk = {
   storeId: string;
   productId: string;
   onHandUnits: number | null;
@@ -135,7 +135,7 @@ export type OpsAction = {
  *  model's ranked recovery options + the recorded action rows (timeline). */
 export type PositionDetail = {
   position: PositionRow;
-  waste_risk: Waste Risk | null;
+  waste_risk: WasteRisk | null;
   recommendation: RecoveryRecommendation | null;
   actions: OpsAction[];
 };
@@ -144,7 +144,7 @@ export type PositionDetail = {
 export type PositionSummary = {
   lostSalesExposureUsd: number;
   markdownExposureUsd: number;
-  openWaste Risks: number;
+  openShortfalls: number;
   recoveriesInProgress: number;
 };
 

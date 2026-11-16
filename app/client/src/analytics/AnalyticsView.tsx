@@ -142,9 +142,9 @@ export function AnalyticsView() {
         </div>
 
         <ChartCard title="Worst waste_risks" scope="By exposure" flush>
-          <ChartData<WorstWaste RiskRow> chartKey="worst_waste_risks" height={300}>
+          <ChartData<WorstWasteRiskRow> chartKey="worst_waste_risks" height={300}>
             {(rows) => (
-              <WorstWaste RisksTable rows={rows} />
+              <WorstWasteRisksTable rows={rows} />
             )}
           </ChartData>
         </ChartCard>
@@ -214,7 +214,7 @@ function ChartData<T = Record<string, unknown>>({
   return children(data ?? []);
 }
 
-type WorstWaste RiskRow = {
+type WorstWasteRiskRow = {
   store_name: string;
   city: string;
   product_name: string;
@@ -223,7 +223,7 @@ type WorstWaste RiskRow = {
   lost_sales_exposure_usd: number;
 };
 
-function WorstWaste RisksTable({ rows }: { rows: WorstWaste RiskRow[] }) {
+function WorstWasteRisksTable({ rows }: { rows: WorstWasteRiskRow[] }) {
   if (rows.length === 0) {
     return (
       <div className="text-center text-muted-foreground text-sm py-8">

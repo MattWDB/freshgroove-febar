@@ -13,16 +13,6 @@
   "appUrl": "${APP_URL:}",
   "pdfVolumePath": "/Volumes/matt_fe_bar_catalog/bronze/raw_landing/supplier_asn_pdfs",
   "mlModelName": "${CATALOG:matt_fe_bar_catalog}.ml.waste_classifier",
-  "data": {
-    "catalog": "${CATALOG:matt_fe_bar_catalog}",
-    "schema": "gold",
-    "tables": {
-      "reorderQueue":    "reorder_queue",
-      "kpiLive":         "kpi_live",
-      "wasteRiskScores": "waste_risk_scores",
-      "supplierRisk":    "gold_supplier_risk"
-    }
-  },
   "branding": {
     "appName": "FreshGroove Perishable Control Tower"
   },

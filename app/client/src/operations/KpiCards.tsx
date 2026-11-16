@@ -27,7 +27,7 @@ export function KpiCards({ summary }: { summary: PositionSummary }) {
       />
       <Card
         label="Open waste_risks"
-        value={summary.openWaste Risks}
+        value={summary.openShortfalls}
         icon={<AlertCircle className="size-4" />}
         tone="neutral"
         isCurrency={false}

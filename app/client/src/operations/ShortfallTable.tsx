@@ -114,7 +114,7 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
-export function Waste RiskTable({
+export function WasteRiskTable({
   rows,
   loading,
   error,
