@@ -215,12 +215,13 @@ function ChartData<T = Record<string, unknown>>({
 }
 
 type WorstWasteRiskRow = {
-  store_name: string;
-  city: string;
-  product_name: string;
-  on_hand: number;
-  avg_daily_velocity: number;
-  lost_sales_exposure_usd: number;
+  store_id: string;
+  sku_id: string;
+  sku_name: string;
+  region: string;
+  risk_pct: number;
+  risk_tier: string;
+  on_hand_units: number;
 };
 
 function WorstWasteRisksTable({ rows }: { rows: WorstWasteRiskRow[] }) {
@@ -237,29 +238,29 @@ function WorstWasteRisksTable({ rows }: { rows: WorstWasteRiskRow[] }) {
       <table className="w-full text-sm">
         <thead className="bg-muted text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
           <tr>
-            <th className="text-left px-4 py-2 font-semibold">Store</th>
-            <th className="text-left px-4 py-2 font-semibold">City</th>
-            <th className="text-left px-4 py-2 font-semibold">Product</th>
-            <th className="text-left px-4 py-2 font-semibold">On hand</th>
-            <th className="text-left px-4 py-2 font-semibold">7d velocity</th>
-            <th className="text-right px-4 py-2 font-semibold">Exposure $</th>
+            <th className="text-left px-4 py-2 font-semibold">SKU</th>
+            <th className="text-left px-4 py-2 font-semibold">Store / Region</th>
+            <th className="text-left px-4 py-2 font-semibold">Risk tier</th>
+            <th className="text-right px-4 py-2 font-semibold">Risk %</th>
+            <th className="text-right px-4 py-2 font-semibold">On hand</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {rows.map((row, i) => (
             <tr key={i} className="hover:bg-muted/40 transition-colors">
-              <td className="px-4 py-2 font-medium">{row.store_name}</td>
-              <td className="px-4 py-2 text-muted-foreground">{row.city}</td>
-              <td className="px-4 py-2">{row.product_name}</td>
-              <td className="px-4 py-2 font-mono">{row.on_hand}</td>
-              <td className="px-4 py-2 font-mono">
-                {row.avg_daily_velocity.toFixed(1)}/day
+              <td className="px-4 py-2 font-medium">
+                {row.sku_id}
+                <div className="text-xs text-muted-foreground font-normal">{row.sku_name}</div>
               </td>
-              <td className="px-4 py-2 text-right font-mono">
-                ${(row.lost_sales_exposure_usd ?? 0).toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}
+              <td className="px-4 py-2 text-muted-foreground">{row.store_id} · {row.region}</td>
+              <td className="px-4 py-2">
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{ background: row.risk_tier === 'HIGH' ? 'rgba(239,91,63,0.12)' : 'rgba(234,179,8,0.12)', color: row.risk_tier === 'HIGH' ? '#ef5b3f' : '#ca8a04' }}>
+                  {row.risk_tier}
+                </span>
               </td>
+              <td className="px-4 py-2 text-right font-mono">{Number(row.risk_pct ?? 0).toFixed(1)}%</td>
+              <td className="px-4 py-2 text-right font-mono">{row.on_hand_units}</td>
             </tr>
           ))}
         </tbody>

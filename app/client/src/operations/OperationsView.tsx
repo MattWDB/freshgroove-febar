@@ -105,26 +105,33 @@ export function OperationsView() {
           <ArrowRight className="size-4 text-muted-foreground shrink-0" />
         </button>
 
-        {/* KPI cards */}
+        {/* KPI cards — render whatever rows kpi_live returns */}
         {kpisError ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
             KPIs unavailable: {kpisError}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { key: 'waste_rate', label: 'Waste rate', suffix: '%' },
-              { key: 'spoilage_cost_annual', label: 'Annual spoilage cost', prefix: '$', suffix: 'M' },
-              { key: 'otif_rate', label: 'OTIF rate', suffix: '%' },
-              { key: 'chargeback_cost_annual', label: 'Annual chargebacks', prefix: '$', suffix: 'M' },
-            ].map(({ key, label, prefix = '', suffix = '' }) => {
-              const kpi = kpiMap[key];
+            {(kpis ?? []).slice(0, 4).map((kpi) => {
+              // Values stored as decimals (0.1194) for rates — multiply by 100 for display
+              const raw = Number(kpi.metric_value);
+              const isRate = kpi.metric_name?.includes('rate') || kpi.metric_name?.includes('pct');
+              const isCost = kpi.metric_name?.includes('cost') || kpi.metric_name?.includes('annual') || kpi.metric_name?.includes('chargeback');
+              let display: string;
+              if (isRate) {
+                display = `${(raw * 100).toFixed(1)}%`;
+              } else if (isCost && raw > 1_000_000) {
+                display = `$${(raw / 1_000_000).toFixed(1)}M`;
+              } else if (isCost && raw > 1_000) {
+                display = `$${(raw / 1_000).toFixed(0)}K`;
+              } else {
+                display = String(kpi.metric_value ?? '—');
+              }
+              const key = kpi.metric_name;
               return (
                 <div key={key} className="rounded-xl border border-border bg-card p-5 space-y-1">
-                  <div className="text-2xl font-bold text-foreground">
-                    {kpi ? `${prefix}${kpi.metric_value}${suffix}` : '—'}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{kpi?.metric_label ?? label}</div>
+                  <div className="text-2xl font-bold text-foreground">{display}</div>
+                  <div className="text-xs text-muted-foreground">{kpi.metric_label ?? kpi.metric_name}</div>
                 </div>
               );
             })}
