@@ -227,8 +227,15 @@ function JourneyDiagram({
       icon: Eye,
       title: `${heroName} opens Operations`,
       description: 'The reorder queue is live. 29K HIGH-risk rows. SKU-STRWBRY is at the top.',
-      action: () => navigate('/operations'),
-      actionLabel: 'Navigate',
+      // Opens the assistant asking for a live queue summary — keeps user on
+      // this page so they can flow through all 4 steps without navigating away.
+      action: () => {
+        dockController.newAndSend(
+          'Give me a quick summary of the top 3 at-risk SKUs in the waste reorder queue right now.',
+        );
+      },
+      actionLabel: 'Open queue',
+      navigateTo: '/operations',
     },
     {
       icon: MessageCircleQuestion,
@@ -246,7 +253,9 @@ function JourneyDiagram({
       description:
         'Reduce order by 120 units. Check backup supplier SUP-0007. Adjust 8 Northeast stores.',
       action: () => {
-        dockController.open();
+        dockController.openAndSend(
+          'What specific actions should I take for SKU-STRWBRY in the Northeast stores to reduce waste risk?',
+        );
       },
       actionLabel: 'View plan',
     },
@@ -293,13 +302,23 @@ function JourneyDiagram({
               <p className="text-xs text-muted-foreground leading-relaxed flex-1">
                 {step.description}
               </p>
-              <button
-                onClick={step.action}
-                className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
-              >
-                {step.actionLabel}
-                <ArrowRight className="size-3" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={step.action}
+                  className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
+                >
+                  {step.actionLabel}
+                  <ArrowRight className="size-3" />
+                </button>
+                {'navigateTo' in step && step.navigateTo && (
+                  <button
+                    onClick={() => navigate(step.navigateTo as string)}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                  >
+                    View Operations →
+                  </button>
+                )}
+              </div>
             </div>
             {i < steps.length - 1 && (
               <div className="hidden lg:flex items-center justify-center">
