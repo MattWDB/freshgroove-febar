@@ -10,6 +10,7 @@ user_authorization:
     - catalog.catalogs:read
     - catalog.schemas:read
     - catalog.tables:read
+    - model-serving
 
 resources:
   - name: sql-warehouse
@@ -19,6 +20,10 @@ resources:
   - name: waste-scorer
     serving_endpoint:
       name: freshgroove-waste-scorer
+      permission: CAN_QUERY
+  - name: agent-model
+    serving_endpoint:
+      name: databricks-claude-sonnet-5
       permission: CAN_QUERY
 
 env:

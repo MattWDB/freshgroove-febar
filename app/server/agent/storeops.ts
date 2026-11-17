@@ -302,9 +302,34 @@ function makeTools(ctx: AgentContext): Tool[] {
   return tools;
 }
 
-export async function configureAgentsSdk(ctx: AgentContext): Promise<void> {
+async function getAgentToken(ctx: AgentContext): Promise<string> {
+  // Prefer M2M service-principal credentials — always available in Databricks
+  // Apps and don't depend on the user having the model-serving OBO scope.
+  // Fall back to OBO token if M2M credentials aren't present (local dev).
+  const clientId     = process.env.DATABRICKS_CLIENT_ID;
+  const clientSecret = process.env.DATABRICKS_CLIENT_SECRET;
+  if (clientId && clientSecret) {
+    try {
+      const resp = await fetch(`${ctx.databricksHost}/oidc/v1/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: clientId,
+          client_secret: clientSecret,
+          scope: 'all-apis',
+        }),
+      });
+      const data = await resp.json() as { access_token?: string };
+      if (data.access_token) return data.access_token;
+    } catch { /* fall through to OBO */ }
+  }
   const headers = await authHeaders(ctx.req);
-  const bearer = headers.get('Authorization')?.replace(/^Bearer /, '') ?? '';
+  return headers.get('Authorization')?.replace(/^Bearer /, '') ?? '';
+}
+
+export async function configureAgentsSdk(ctx: AgentContext): Promise<void> {
+  const bearer = await getAgentToken(ctx);
   // Custom fetch: fresh TCP connection per call (avoids the stale-socket 502
   // after a long ask_data hop) + strip the >64-char `input[*].id` the SDK
   // echoes back on round 2 (Databricks' Responses API rejects long ids and
