@@ -25,6 +25,10 @@ resources:
     serving_endpoint:
       name: databricks-claude-sonnet-5-5
       permission: CAN_QUERY
+  - name: genie-space
+    genie_space:
+      id: "01f1dd14a9e21327992887fd1d1ede03"
+      permission: CAN_USE
 
 env:
   - name: NODE_ENV
