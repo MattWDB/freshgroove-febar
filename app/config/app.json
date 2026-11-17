@@ -2,7 +2,7 @@
   // FreshGroove Perishable Control Tower — app config
   "masEndpointName": "",
   "genieSpaceId": "${GENIE_SPACE_ID:01f1dd14a9e21327992887fd1d1ede03}",
-  "agentModel": "${AGENT_MODEL:databricks-claude-sonnet-5}",
+  "agentModel": "${AGENT_MODEL:databricks-claude-sonnet-5-5}",
   "mlflowExperimentId": "",
   "agentMlflowExperimentPath": "${AGENT_MLFLOW_EXPERIMENT_PATH:}",
   "dashboardId": "${DASHBOARD_ID:}",

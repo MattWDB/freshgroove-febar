@@ -23,7 +23,7 @@ resources:
       permission: CAN_QUERY
   - name: agent-model
     serving_endpoint:
-      name: databricks-claude-sonnet-5
+      name: databricks-claude-sonnet-5-5
       permission: CAN_QUERY
 
 env:
