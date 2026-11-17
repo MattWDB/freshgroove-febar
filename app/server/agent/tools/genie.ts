@@ -33,6 +33,41 @@ import { z } from 'zod';
 import { authHeaders } from '../../lib/auth.js';
 import type { DataCallResult, DataToolContext, ToolProgressEvent } from './types.js';
 
+// M2M token cache shared by all Genie calls in this process
+let _genieM2MCache: { token: string; expiresAt: number } | null = null;
+
+async function genieAuthHeaders(ctx: DataToolContext): Promise<Headers> {
+  const clientId     = process.env.DATABRICKS_CLIENT_ID;
+  const clientSecret = process.env.DATABRICKS_CLIENT_SECRET;
+  if (clientId && clientSecret) {
+    const now = Date.now();
+    if (!_genieM2MCache || now >= _genieM2MCache.expiresAt) {
+      try {
+        const resp = await fetch(`${ctx.databricksHost}/oidc/v1/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: clientId,
+            client_secret: clientSecret,
+            scope: 'all-apis',
+          }),
+        });
+        const data = await resp.json() as { access_token?: string };
+        if (data.access_token) {
+          _genieM2MCache = { token: data.access_token, expiresAt: now + 50 * 60 * 1000 };
+        }
+      } catch { /* fall through to OBO */ }
+    }
+    if (_genieM2MCache) {
+      const h = new Headers();
+      h.set('Authorization', `Bearer ${_genieM2MCache.token}`);
+      return h;
+    }
+  }
+  return authHeaders(ctx.req);
+}
+
 /**
  * Low-level helper: call Genie REST and return the synthesized answer.
  * Exported so tests / alternate tool wrappers can reuse it without going
@@ -47,7 +82,7 @@ export async function callGenieSpace(
     try { ctx.onToolProgress?.(ev); } catch { /* never let progress fail the tool */ }
   }
 
-  const headers = await authHeaders(ctx.req);
+  const headers = await genieAuthHeaders(ctx);
   headers.set('Content-Type', 'application/json');
 
   // Start a Genie conversation. 2-min cap on the kickoff call — it's a
@@ -92,7 +127,7 @@ export async function callGenieSpace(
   let answer = '';
   for (let attempts = 0; attempts < POLL_MAX_ATTEMPTS; attempts++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const pollHeaders = await authHeaders(ctx.req);
+    const pollHeaders = await genieAuthHeaders(ctx);
     pollHeaders.set('Content-Type', 'application/json');
     const pollResp = await fetch(pollUrl, {
       method: 'GET',
