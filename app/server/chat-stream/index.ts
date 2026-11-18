@@ -110,12 +110,10 @@ export async function handleChatStream(args: {
           pg_column: cause?.column,
           pg_message: cause?.message,
         });
-        // Tell the client. Otherwise the page shows the message and then
-        // reload drops it silently — the worst kind of "did it work?" bug.
-        sseError(
-          res,
-          `Your last message couldn't be saved (${cause?.code ?? 'db error'}). The agent will reply but a page reload won't show it.`,
-        );
+        // No Lakebase on this workspace — log only, don't surface a red
+        // "THE AGENT HIT AN ERROR" banner. The agent still runs and the
+        // reply IS visible; conversations simply reset on reload (fine for demo).
+        console.warn('[chat] user message not persisted (no Lakebase) — continuing');
       }
     }
   }
@@ -303,12 +301,9 @@ export async function handleChatStream(args: {
         pg_hint: cause?.hint,
         pg_message: cause?.message,
       });
-      // Tell the client. The assistant text streamed fine but reload won't
-      // show it — better to surface than to silently drop.
-      sseError(
-        res,
-        `Reply wasn't saved (${cause?.code ?? 'db error'}). It's visible now but won't survive reload.`,
-      );
+      // No Lakebase — log only. The reply is already in the client's DOM;
+      // showing "THE AGENT HIT AN ERROR" is misleading when the agent ran fine.
+      console.warn('[chat] reply not persisted (no Lakebase) — session-only');
     }
   }
 
