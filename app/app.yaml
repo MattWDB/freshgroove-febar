@@ -29,6 +29,11 @@ resources:
     genie_space:
       id: "01f1dd14a9e21327992887fd1d1ede03"
       permission: CAN_USE
+  - name: lakebase-project
+    lakebase_project:
+      id: "freshgroove-febar"
+      branch: "production"
+      permission: CAN_USE
 
 env:
   - name: NODE_ENV
@@ -54,7 +59,7 @@ env:
   - name: DASHBOARD_ID
     value: "01f1ddd68ed8119a9b9328fd0c5c414b"
   - name: PGHOST
-    value: "localhost"
+    value: "ep-mute-pond-d13rvsiy.database.us-west-2.cloud.databricks.com"
   - name: PGDATABASE
     value: "freshgroove"
   - name: PGPORT

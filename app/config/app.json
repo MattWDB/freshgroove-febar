@@ -9,7 +9,7 @@
   "pipelineId": "${PIPELINE_ID:f668d89e-d740-4352-9d26-f85022fbe3e4}",
   "warehouseId": "${WAREHOUSE_ID:13d586337d2fb9b5}",
   "kaEndpointName": "",
-  "lakebaseProjectId": "${CATALOG:matt_fe_bar_catalog}.gold",
+  "lakebaseProjectId": "freshgroove-febar",
   "appUrl": "${APP_URL:}",
   "pdfVolumePath": "/Volumes/matt_fe_bar_catalog/bronze/raw_landing/supplier_asn_pdfs",
   "mlModelName": "${CATALOG:matt_fe_bar_catalog}.ml.waste_classifier",

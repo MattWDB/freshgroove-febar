@@ -1,9 +1,8 @@
 /**
- * FreshGroove domain routes — KPIs, reorder queue, acknowledge write-back,
- * plus in-memory conversation stubs (so the assistant works without Lakebase).
+ * FreshGroove domain routes — KPIs, reorder queue, and acknowledge write-back.
  *
- * All routes here are registered BEFORE the migration gate so they work
- * regardless of Lakebase availability.
+ * These routes are registered BEFORE the migration gate so they work
+ * regardless of database readiness (they use direct SQL, not Lakebase).
  *
  * SQL routes use M2M service-principal credentials (DATABRICKS_CLIENT_ID /
  * DATABRICKS_CLIENT_SECRET) instead of the user's OBO token — the OBO token
@@ -85,22 +84,6 @@ async function runSQL(sql: string): Promise<Record<string, unknown>[]> {
   );
 }
 
-// ---------------------------------------------------------------------------
-// In-memory conversation store — lets the assistant work when Lakebase is
-// unavailable (conversations reset on restart, fine for a demo).
-// ---------------------------------------------------------------------------
-interface Conversation { id: string; title: string; kind: string; userEmail: string; createdAt: string; updatedAt: string; }
-const memConversations = new Map<string, Conversation>();
-let convoSeq = 1;
-
-function makeConvo(userEmail: string, title = 'New conversation', kind = 'chat'): Conversation {
-  const id = `mem-${convoSeq++}`;
-  const now = new Date().toISOString();
-  const c: Conversation = { id, title, kind, userEmail, createdAt: now, updatedAt: now };
-  memConversations.set(id, c);
-  return c;
-}
-
 export function registerFreshgrooveRoutes(app: Application): void {
 
   // ── Health ──────────────────────────────────────────────────────────────
@@ -168,48 +151,4 @@ export function registerFreshgrooveRoutes(app: Application): void {
     }
   });
 
-  // ── Conversation stubs (in-memory, bypass Lakebase) ─────────────────────
-  // These are registered before the migration gate so they respond even when
-  // the db is unavailable. The actual registerChatRoutes handlers further
-  // down the middleware chain are never reached for these paths.
-
-  app.get('/api/conversations', (req: Request, res: Response) => {
-    const email = (req.headers['x-forwarded-email'] as string) ?? 'user@freshgroove.com';
-    const list = Array.from(memConversations.values())
-      .filter(c => c.userEmail === email)
-      .map(({ id, title, kind, createdAt, updatedAt }) => ({ id, title, kind, createdAt, updatedAt }));
-    res.json(list);
-  });
-
-  app.post('/api/conversations', (req: Request, res: Response) => {
-    const email = (req.headers['x-forwarded-email'] as string) ?? 'user@freshgroove.com';
-    const title = (req.body as any)?.title ?? 'New conversation';
-    const kind  = (req.body as any)?.kind  ?? 'chat';
-    const c = makeConvo(email, title, kind);
-    res.json(c);
-  });
-
-  app.get('/api/dock-conversation', (req: Request, res: Response) => {
-    const email = (req.headers['x-forwarded-email'] as string) ?? 'user@freshgroove.com';
-    // Return existing dock convo or create one
-    let dock = Array.from(memConversations.values()).find(c => c.userEmail === email && c.kind === 'dock');
-    if (!dock) dock = makeConvo(email, 'Assistant', 'dock');
-    res.json({ ...dock, messages: [] });
-  });
-
-  app.get('/api/conversations/:id', (req: Request, res: Response) => {
-    const c = memConversations.get(req.params.id);
-    if (!c) { res.status(404).json({ error: 'Not found' }); return; }
-    res.json({ ...c, messages: [] });
-  });
-
-  app.delete('/api/conversations/:id', (req: Request, res: Response) => {
-    memConversations.delete(req.params.id);
-    res.json({ success: true });
-  });
-
-  // Activity feed stub — returns empty (no Lakebase write history)
-  app.get('/api/activity/recent', (_req: Request, res: Response) => {
-    res.json([]);
-  });
 }

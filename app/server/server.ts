@@ -612,11 +612,9 @@ migrationsReady = (async () => {
     }
     migrationsDone = true;
   } catch (e) {
-    // No Lakebase on this workspace — run in DB-less mode. FreshGroove routes
-    // use direct SQL (registered before the gate), so they work regardless.
-    // Routes that actually call db will return 500 JSON for their requests.
-    console.warn('[boot] DB init skipped (no Lakebase available):', (e as Error).message);
-    migrationsDone = true;
+    migrationsFailure = e instanceof Error ? e : new Error(String(e));
+    logErrorCompact('[boot] DB init failed:', e);
+    throw migrationsFailure;
   }
 })();
 // Swallow the rejection at the top level — the gate handles it. Without
