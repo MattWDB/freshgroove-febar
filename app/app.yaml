@@ -66,5 +66,6 @@ env:
     value: "5432"
   - name: PGSSLMODE
     value: "require"
+  # LAKEBASE_ENDPOINT must be the endpoint resource path, not the workspace URL
   - name: LAKEBASE_ENDPOINT
-    value: "https://fevm-matt-fe-bar.cloud.databricks.com"
+    value: "projects/freshgroove-febar/branches/production/endpoints/primary"

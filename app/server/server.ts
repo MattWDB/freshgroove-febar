@@ -612,18 +612,9 @@ migrationsReady = (async () => {
     }
     migrationsDone = true;
   } catch (e) {
-    // Lakebase DB needs manual schema grants before migrations can run.
-    // App runs in graceful mode — FreshGroove routes bypass the gate,
-    // conversations use in-memory stubs. Lakebase project exists and is
-    // visible in the workspace. Run this once to unlock full persistence:
-    //   databricks postgres update-role
-    //     projects/freshgroove-febar/branches/production/roles/c79f593f-0754-4834-92c6-89bd18f34b28
-    //     "spec.attributes"
-    //     --json '{"spec":{"identity_type":"SERVICE_PRINCIPAL","postgres_role":"c79f593f-0754-4834-92c6-89bd18f34b28","auth_method":"LAKEBASE_OAUTH_V1","attributes":{"createdb":true,"createrole":true,"bypassrls":false}}}' --profile fe-bar
-    // Then also: connect as yourself and run:
-    //   GRANT ALL ON DATABASE freshgroove TO "c79f593f-0754-4834-92c6-89bd18f34b28";
-    console.warn('[boot] Lakebase migrations pending schema grants — running in graceful mode:', (e as Error).message.slice(0, 120));
-    migrationsDone = true;
+    migrationsFailure = e instanceof Error ? e : new Error(String(e));
+    logErrorCompact('[boot] DB init failed:', e);
+    throw migrationsFailure;
   }
 })();
 // Swallow the rejection at the top level — the gate handles it. Without
