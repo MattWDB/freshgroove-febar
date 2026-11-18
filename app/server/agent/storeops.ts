@@ -46,13 +46,7 @@ import * as mlflow from 'mlflow-tracing';
 import { z } from 'zod';
 import { authHeaders } from '../lib/auth.js';
 import type { AppDb } from '../db/index.js';
-import {
-  getShortfall,
-  worstShortfall,
-  getPosition,
-  getRecommendation,
-  recordRecoveryAction,
-} from '../db/queries/stores.js';
+// NorthPeak store-ops queries removed — FreshGroove uses direct SQL routes
 // The data-backend helpers. Both are config-driven and share the same
 // DataCallResult shape + ToolProgressEvent stream, so the `ask_data` tool
 // below can delegate to EITHER without the UI caring which powers it. This
@@ -132,94 +126,136 @@ function makeTools(ctx: AgentContext): Tool[] {
       ),
   });
 
-  // ── find_shortfall — TRAINEE BUILDS (Build 2 · Assist). STUB. ─────────────
-  // TODO — BUILD 2 (trainee): implement this. Read the open shortfall for
-  // {store_id, product_id} (or the worst one) from Lakebase app.open_shortfalls
-  // + app.store_sku_position: on_hand, recent velocity, weeks_of_supply,
-  // lost-sales exposure, AND the nearest surplus store + its on-hand + distance.
-  // Helper queries are READY in server/db/queries/stores.ts: `getShortfall`,
-  // `worstShortfall`, `getPosition`. See APP_WORKSHOP.md → "Layer 2 — Assist".
+  // ── get_risk_details — read live waste-risk data for a SKU ─────────────────
   const findShortfall = tool({
-    name: 'find_shortfall',
+    name: 'get_risk_details',
     description:
-      'Read the live shortfall for a store×SKU (or the worst open shortfall) from Lakebase: on-hand, recent velocity, weeks of supply, lost-sales exposure, and the nearest surplus store + its on-hand + distance. Read-only.',
+      'Read the live waste-risk details for a specific SKU (and optionally a specific store) from the FreshGroove reorder queue: risk score, risk tier, on-hand units, recommended action, and acknowledgement status. Use after ask_data to drill into a specific SKU. Read-only.',
     parameters: z.object({
+      sku_id: z
+        .string()
+        .nullable()
+        .describe('SKU id, e.g. SKU-STRWBRY. Null → return the top 5 highest-risk rows.'),
       store_id: z
         .string()
         .nullable()
-        .describe('Store id, e.g. STORE-0214. Null → return the worst open shortfall.'),
-      product_id: z
-        .string()
-        .nullable()
-        .describe('SKU, e.g. SKU-APP-04412. Null → return the worst open shortfall.'),
+        .describe('Store id, e.g. STR-001. Null → return all stores for this SKU.'),
     }),
-    execute: async ({ store_id, product_id }) =>
+    execute: async ({ sku_id, store_id }) =>
       mlflow.withSpan(
         async () => {
-          const shortfall =
-            store_id && product_id
-              ? await getShortfall(ctx.db, store_id, product_id)
-              : await worstShortfall(ctx.db);
-          if (!shortfall) return { found: false };
-          const position = await getPosition(
-            ctx.db,
-            `${shortfall.storeId}:${shortfall.productId}`,
-          );
-          return {
-            found: true,
-            store_id: shortfall.storeId,
-            product_id: shortfall.productId,
-            store_name: position?.storeName ?? null,
-            city: position?.city ?? null,
-            on_hand_units: shortfall.onHandUnits,
-            avg_daily_velocity: shortfall.avgDailyVelocity,
-            weeks_of_supply: position?.weeksOfSupply ?? null,
-            lost_sales_exposure_usd: shortfall.lostSalesExposureUsd,
-            nearest_surplus_store_id: shortfall.nearestSurplusStoreId,
-            nearest_surplus_on_hand: shortfall.nearestSurplusOnHand,
-            nearest_surplus_distance_km: shortfall.nearestSurplusDistanceKm,
-          };
+          const WORKSPACE = (process.env.WORKSPACE_HOST ?? process.env.DATABRICKS_HOST ?? '').replace(/\/+$/, '');
+          const WAREHOUSE = process.env.WAREHOUSE_ID ?? process.env.DATABRICKS_WAREHOUSE_ID ?? '13d586337d2fb9b5';
+          const CATALOG   = process.env.CATALOG ?? 'matt_fe_bar_catalog';
+
+          const clientId     = process.env.DATABRICKS_CLIENT_ID;
+          const clientSecret = process.env.DATABRICKS_CLIENT_SECRET;
+          let token = '';
+          if (clientId && clientSecret) {
+            const tr = await fetch(`${WORKSPACE}/oidc/v1/token`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret, scope: 'all-apis' }),
+            });
+            const td = await tr.json() as { access_token?: string };
+            token = td.access_token ?? '';
+          }
+          if (!token) {
+            const h = await authHeaders(ctx.req);
+            token = h.get('Authorization')?.replace(/^Bearer /, '') ?? '';
+          }
+
+          let where = 'risk_tier IN (\'HIGH\', \'MEDIUM\')';
+          if (sku_id) where += ` AND sku_id = '${sku_id.replace(/'/g, "''")}'`;
+          if (store_id) where += ` AND store_id = '${store_id.replace(/'/g, "''")}'`;
+
+          const resp = await fetch(`${WORKSPACE}/api/2.0/sql/statements`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              statement: `SELECT queue_id, store_id, sku_id, sku_name, category, region, supplier_id, ROUND(waste_risk_score*100,1) AS risk_pct, risk_tier, recommended_action, on_hand_units, status FROM ${CATALOG}.gold.reorder_queue WHERE ${where} ORDER BY waste_risk_score DESC LIMIT 10`,
+              warehouse_id: WAREHOUSE, wait_timeout: '30s', disposition: 'INLINE', format: 'JSON_ARRAY',
+            }),
+          });
+          const text = await resp.text();
+          let data: any;
+          try { data = JSON.parse(text); } catch { return { error: `SQL non-JSON: ${text.slice(0, 200)}` }; }
+          if (!resp.ok || data.status?.state === 'FAILED') return { error: data.status?.error?.message ?? 'query failed' };
+          const cols: string[] = (data.manifest?.schema?.columns ?? []).map((c: any) => c.name as string);
+          const rows = (data.result?.data_array ?? []).map((row: unknown[]) => Object.fromEntries(cols.map((c, i) => [c, row[i]])));
+          return { found: rows.length > 0, count: rows.length, rows };
         },
         {
-          name: 'find_shortfall',
+          name: 'get_risk_details',
           spanType: mlflow.SpanType.TOOL,
-          inputs: { store_id, product_id },
+          inputs: { sku_id, store_id },
         },
       ),
   });
 
-  // ── rank_recovery_moves — TRAINEE BUILDS (Build 2 · Assist). STUB. ────────
-  // TODO — BUILD 2 (trainee): implement this. Read app.recovery_recommendations
-  // for {store_id, product_id} and return the model's recommended_move,
-  // predicted_recaptured_usd, predicted_net_value_usd, and the full move_ranking
-  // (all three options with predicted recaptured $ + net $ + cost). This is the
-  // demo's "ML in the loop" moment — the agent quotes the ranked options + the
-  // recommended move in the draft, and recomputes the what-if arithmetically
-  // from move_ranking. Helper query READY: `getRecommendation` in stores.ts.
-  // See APP_WORKSHOP.md → "Layer 2 — Assist".
+  // ── acknowledge_risk — write the corrective action to the audit trail ───────
   const rankRecoveryMoves = tool({
-    name: 'rank_recovery_moves',
+    name: 'acknowledge_risk',
     description:
-      "Read the ML recovery model's ranked moves for a store×SKU from Lakebase app.recovery_recommendations: the recommended move, its predicted recaptured $ + net value, and the full ranking of all three options (transfer / expedite / substitute) with each option's units, cost, predicted recaptured $ and net $. Read-only. Quote these in the draft; do the what-if arithmetically from the ranking.",
+      'WRITE (requires prior user approval): acknowledge a waste-risk item in the reorder queue — logs the corrective action with the planner\'s name and timestamp. Use ONLY after the user has explicitly approved. The queue_id comes from get_risk_details.',
     parameters: z.object({
-      store_id: z.string().describe('Store id, e.g. STORE-0214.'),
-      product_id: z.string().describe('SKU, e.g. SKU-APP-04412.'),
+      queue_id: z.number().describe('The queue_id from get_risk_details for the row to acknowledge.'),
+      sku_id: z.string().describe('SKU being acknowledged, e.g. SKU-STRWBRY.'),
+      store_id: z.string().describe('Store id, e.g. STR-001.'),
     }),
-    execute: async ({ store_id, product_id }) =>
+    execute: async ({ queue_id, sku_id, store_id }) =>
       mlflow.withSpan(
         async () => {
-          const rec = await getRecommendation(ctx.db, store_id, product_id);
-          if (!rec)
-            return {
-              scored: false,
-              note: 'No recovery recommendation yet — build + score the recovery_recommender model (Build 2 ML step), then reset the demo.',
-            };
-          return rec;
+          const WORKSPACE = (process.env.WORKSPACE_HOST ?? process.env.DATABRICKS_HOST ?? '').replace(/\/+$/, '');
+          const clientId = process.env.DATABRICKS_CLIENT_ID;
+          const clientSecret = process.env.DATABRICKS_CLIENT_SECRET;
+          let token = '';
+          if (clientId && clientSecret) {
+            const tr = await fetch(`${WORKSPACE}/oidc/v1/token`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret, scope: 'all-apis' }),
+            });
+            const td = await tr.json() as { access_token?: string };
+            token = td.access_token ?? '';
+          }
+
+          const resp = await fetch(`${WORKSPACE.replace('https://','https://')}/api/kpis`.replace('/api/kpis', '/api/acknowledge').replace('fevm-matt-fe-bar.cloud.databricks.com', ctx.req.headers['host'] as string ?? 'localhost:8000'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...Object.fromEntries(ctx.req.headers as any) },
+            body: JSON.stringify({ queue_id, user: ctx.userEmail }),
+          });
+
+          if (!resp.ok) {
+            // Fallback: direct SQL update
+            const WAREHOUSE = process.env.WAREHOUSE_ID ?? process.env.DATABRICKS_WAREHOUSE_ID ?? '13d586337d2fb9b5';
+            const CATALOG   = process.env.CATALOG ?? 'matt_fe_bar_catalog';
+            const by = (ctx.userEmail ?? 'planner@freshgroove.com').replace(/'/g, "''");
+            const sqlResp = await fetch(`${WORKSPACE}/api/2.0/sql/statements`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                statement: `UPDATE ${CATALOG}.gold.reorder_queue SET status='acknowledged', acknowledged_by='${by}', acknowledged_at=current_timestamp() WHERE queue_id=${queue_id}`,
+                warehouse_id: WAREHOUSE, wait_timeout: '30s',
+              }),
+            });
+            const sd = await sqlResp.json() as any;
+            if (!sqlResp.ok || sd.status?.state === 'FAILED') return { error: sd.status?.error?.message ?? 'acknowledge failed' };
+          }
+
+          return {
+            acknowledged: true,
+            queue_id,
+            sku_id,
+            store_id,
+            acknowledged_by: ctx.userEmail ?? 'planner@freshgroove.com',
+            message: `Risk acknowledged for ${sku_id} at ${store_id}. Logged to audit trail.`,
+          };
         },
         {
-          name: 'rank_recovery_moves',
+          name: 'acknowledge_risk',
           spanType: mlflow.SpanType.TOOL,
-          inputs: { store_id, product_id },
+          inputs: { queue_id, sku_id, store_id },
         },
       ),
   });
@@ -236,66 +272,8 @@ function makeTools(ctx: AgentContext): Tool[] {
   // db.transaction(...). On commit the caller emits dataMutated so the
   // Operations page cascades. See APP_WORKSHOP.md → "Layer 3 — Act"
   // (+ TEMPLATE_MAP pattern #5, filter-driven bulk writes).
-  const executeRecoveryAction = tool({
-    name: 'execute_recovery_action',
-    description:
-      'WRITE (requires prior user approval): record the approved recovery move to Lakebase app.ops_actions — move_type, from/to store, units, the drafted request, predicted recaptured $ — append an audit entry, and set a markdown-hold on the source surplus for a transfer. Inputs are a FILTER + the drafted request text, never a list of ids. Use ONLY after the user says yes.',
-    parameters: z.object({
-      store_id: z.string().describe('Destination (short) store id, e.g. STORE-0214.'),
-      product_id: z.string().describe('SKU being recovered, e.g. SKU-APP-04412.'),
-      move_type: z
-        .enum(['transfer', 'expedite', 'substitute'])
-        .describe('The approved recovery move.'),
-      units: z.number().describe('Units to move/expedite/substitute (whole units).'),
-      source_store_id: z
-        .string()
-        .nullable()
-        .describe('For a transfer: the surplus source store id (e.g. STORE-0377). Null otherwise.'),
-      drafted_request: z
-        .string()
-        .describe('The transfer/expedite/substitute request memo the agent drafted.'),
-      predicted_recaptured_usd: z
-        .number()
-        .describe('Predicted recaptured revenue for this move (from rank_recovery_moves).'),
-    }),
-    execute: async ({ store_id, product_id, move_type, units, source_store_id, drafted_request, predicted_recaptured_usd }) =>
-      mlflow.withSpan(
-        async () => {
-          const result = await recordRecoveryAction(ctx.db, {
-            storeId: store_id,
-            productId: product_id,
-            moveType: move_type,
-            units,
-            sourceStoreId: source_store_id,
-            draftedRequest: drafted_request,
-            predictedRecapturedUsd: predicted_recaptured_usd,
-            userEmail: ctx.userEmail,
-          });
-          return {
-            recorded: true,
-            action_id: result.actionId,
-            store_id,
-            product_id,
-            move_type,
-            units,
-            source_store_id,
-            predicted_recaptured_usd,
-            markdown_hold: result.markdownHoldId !== null,
-          };
-        },
-        {
-          name: 'execute_recovery_action',
-          spanType: mlflow.SpanType.TOOL,
-          inputs: { store_id, product_id, move_type, units, source_store_id },
-        },
-      ),
-  });
-
-  // find_shortfall / rank_recovery_moves / execute_recovery_action are
-  // registered so the MODEL knows they exist (and the trainee sees them in
-  // the tool list) — they throw until implemented. ask_data is registered
-  // only when a backend is configured.
-  const tools: Tool[] = [findShortfall, rankRecoveryMoves, executeRecoveryAction];
+  // Tools: ask_data (Genie), get_risk_details, acknowledge_risk
+  const tools: Tool[] = [findShortfall, rankRecoveryMoves];
   if (ctx.masEndpointName || ctx.genieSpaceId) {
     tools.unshift(askData);
   }
@@ -480,44 +458,32 @@ export function buildAgent(ctx: AgentContext): Agent {
     // rejects Responses-only params. Tool calling works over chat-completions.
     modelSettings: {},
     instructions: `
-You are the store-operations assistant for the SVP of Retail Operations at
-NorthPeak Retail (Dana Ruiz). Your user is a non-technical executive staring
-at stores on a map all day. Be decisive, concise, and always lead with the
-number and the recommended move.
+You are the perishable operations assistant for FreshGroove Foods — a CPG
+grocery company with $3.5M/yr in perishable waste and OTIF chargebacks.
+Your user is a VP of Perishable Operations (Priya Sharma). Be decisive,
+concise, and always lead with the number and the recommended action.
 
-The situation: an early cold snap flipped cold-weather-apparel demand —
-northern stores are at zero on a handful of top SKUs (customers walking out
-empty-handed = lost-sales exposure) while southern stores sit on surplus of
-the same SKUs (a markdown clock ticking). The hero: STORE-0214 (Denver) is
-short on the Summit Down Parka (SKU-APP-04412).
+The situation: 29K HIGH-risk rows in the reorder queue. SKU-STRWBRY is at
+78% waste risk in Northeast stores with 5 days to expiry. The system flags
+at-risk SKUs 5–8 days early with pre-written recommended actions.
 
 ════════════════════════════════════════════════════════════
 TOOLS AT YOUR DISPOSAL
 ════════════════════════════════════════════════════════════
 
-ask_data(question) — investigate the governed lakehouse. Use for any WHY /
-  WHAT HAPPENED / investigative question (why is a store short, how has
-  sell-through moved, where is the surplus). Prefer ONE narrow question over
-  many small ones. Narrow questions finish in 20–40s.
+ask_data(question) — investigate the governed gold tables via Genie. Use for
+  any WHY / WHAT HAPPENED / trend / supplier question. ONE narrow question at
+  a time. Answers in 20–40s.
 
-find_shortfall(store_id, product_id) — read the LIVE shortfall for a store×SKU
-  (or the worst open shortfall if both are null) from Lakebase: on-hand, recent
-  velocity, weeks of supply, lost-sales exposure, and the NEAREST SURPLUS store
-  + its on-hand + distance. Read-only.
+get_risk_details(sku_id, store_id) — read LIVE waste-risk data from the
+  reorder queue: risk score, tier, on-hand units, recommended action, and
+  acknowledgement status. sku_id or store_id may be null to get top rows.
+  Read-only.
 
-rank_recovery_moves(store_id, product_id) — read the ML recovery model's ranked
-  moves from Lakebase: the recommended move, its predicted recaptured $ + net
-  value, and the FULL ranking of all three options (transfer / expedite /
-  substitute) with each option's units, cost, predicted recaptured $ and net $.
-  This is the "ML in the loop" moment — quote the ranked options + the
-  recommended move in your draft, and do any what-if arithmetically from the
-  ranking (don't re-call the model). Read-only.
-
-execute_recovery_action(store_id, product_id, move_type, units, source_store_id,
-  drafted_request, predicted_recaptured_usd) — THE WRITE. Records the approved
-  move to Lakebase (transfer/expedite/substitute) + a markdown-hold on the
-  source surplus. Use ONLY after the user has explicitly approved. Inputs are a
-  FILTER + the drafted request text — never a list of ids.
+acknowledge_risk(queue_id, sku_id, store_id) — THE WRITE. Logs the corrective
+  action to the Delta audit trail with the planner's name and timestamp.
+  Use ONLY after the user has explicitly approved. queue_id comes from
+  get_risk_details.
 
 THERE ARE NO OTHER TOOLS.
 
@@ -526,66 +492,44 @@ OPERATING MODES
 ════════════════════════════════════════════════════════════
 
 MODE A — INVESTIGATION
-If the user asks "why", "what", "where", "who", or anything that requires
-reading data → call ask_data EXACTLY ONCE with a SHORT, targeted question,
-then synthesize for the user. Do NOT take an action unless explicitly asked.
+User asks "why", "what", "which", or any data question → call ask_data ONCE
+with a SHORT focused question, synthesize for the user. Lead with numbers.
 
-MODE B — RECOVERY ACTION CHAIN (HUMAN-IN-THE-LOOP)
-If the user asks you to RECOVER / FIX / HANDLE / TRANSFER something, run a
-strict three-phase chain with a confirmation step in the middle. NEVER run
-Phase 3 (execute_recovery_action) until the user has explicitly approved.
+MODE B — ACKNOWLEDGE ACTION CHAIN (HUMAN-IN-THE-LOOP)
+User asks to handle / act on / acknowledge a risk → run this chain:
 
---- Phase 1 · Discover (read-only) ---
-  1. If you don't already know the target store×SKU, call ask_data to find the
-     worst shortfall, or ask the user once. For the hero flow it's STORE-0214 /
-     SKU-APP-04412.
-  2. Call find_shortfall(store_id, product_id) to read the live position + the
-     nearest surplus store.
-  3. Call rank_recovery_moves(store_id, product_id) — THE ML MOMENT. Remember
-     the recommended move + the full ranking; you quote them in Phase 2.
+--- Phase 1 · Get risk details (read-only) ---
+  1. Call get_risk_details(sku_id, store_id) to get queue_id + recommended action.
+  2. Present: SKU, store, risk score, recommended action, on-hand units.
 
 --- Phase 2 · Draft + confirm (STOP) ---
-  4. Present the ranked options (transfer / expedite / substitute), each with
-     units, cost, margin impact, and predicted recaptured $. Recommend the top
-     one and explain WHY (e.g. "Transfer ~60 units from STORE-0377 — predicted
-     +$14K recaptured, lowest cost, protects margin both ends"). Offer a what-if
-     ("what if 40 units instead of 60?") computed arithmetically from the
-     ranking. Draft the transfer/expedite/substitute request memo.
-  5. End with: "Reply **approve** to record this transfer — or tell me what to
-     change." STOP HERE. Do not proceed until the user's next message.
+  3. Draft the corrective action memo (e.g. "Reduce order by 49 units, alert
+     supplier SUP-0007"). Explain the business impact briefly.
+  4. End with: "Reply **approve** to log this action — or tell me what to
+     change." STOP. Do not proceed until the user approves.
 
---- Phase 3 · Execute (on approval) ---
-  Triggered only when the user's NEXT message is an approval ("approve", "yes",
-  "go", "do it", "ship it", "looks good"). A revision request means → redraft
-  and go back to Phase 2 (STOP again).
-  On approval: call execute_recovery_action ONCE with the approved move's
-  filter + the drafted request + the predicted recaptured $. Then summarize
-  what was recorded (see SUMMARY FORMAT). Numbers come from the tool result,
-  not memory.
-
-If a tool errors, surface the error plainly — never pretend a tool ran.
+--- Phase 3 · Acknowledge (on approval) ---
+  5. On approval ("approve", "yes", "go", "log it", "do it"): call
+     acknowledge_risk(queue_id, sku_id, store_id) ONCE. Then summarize.
 
 ════════════════════════════════════════════════════════════
-SUMMARY FORMAT (final assistant message)
+SUMMARY FORMAT
 ════════════════════════════════════════════════════════════
 
-ALWAYS end an action chain with a markdown summary the executive reads in 10s:
+**Done — SKU-STRWBRY risk acknowledged.**
 
-**Done — STORE-0214 recovery recorded.**
+- **Reduce order by 49 units** · Northeast stores · supplier SUP-0007 alerted
+- Logged by you · timestamped audit trail created
+- **Next:** check SKU-PROD10 (#3 on the risk queue)
 
-- **Transfer 60 units** of Summit Down Parka · STORE-0377 → STORE-0214
-- **Predicted +$14K recaptured** · markdown-hold set on STORE-0377 surplus
-- Recorded by you, awaiting fulfillment
-
-Rules: bold the headline stat on line 1; numbers come from tool results, not
-memory; close with ONE concrete next step only if warranted.
+Rules: bold the headline action; numbers from tool results, not memory.
 
 ════════════════════════════════════════════════════════════
 TONE
 ════════════════════════════════════════════════════════════
 
-The user is busy. Lead with the answer + the recommended move. No preamble.
-When investigating, synthesize — don't dump raw data.
+Lead with the number and the action. No preamble. When investigating,
+synthesize — do not dump raw data. The user is a busy VP.
 `.trim(),
     tools: makeTools(ctx),
   });
