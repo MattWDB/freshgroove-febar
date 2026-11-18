@@ -372,10 +372,10 @@ export function PlatformDiagram() {
                   href={href(R.mas.url)}
                 which deep-links to {host}/ml/endpoints/{masEndpointName}. */}
             <Prod
-              href={href(R.agentBricks.url)}
+              href={href(R.app.url)}
               icon={<AgentBricksIcon />}
-              title="Agent Bricks"
-              sub="Rank the recovery move, draft the transfer, write it back"
+              title="Agent Loop"
+              sub="OpenAI Agents SDK · queries Genie, ranks waste risks, writes back acknowledgements"
             />
           </Row>
 
@@ -432,13 +432,13 @@ export function PlatformDiagram() {
                   icon={<LakehouseIcon />}
                   title="Lakehouse"
                   rt
-                  sub="~100 ms charts, thousands of concurrent users"
+                  sub="Serverless SQL warehouse serving Delta gold tables · analytics + charts"
                 />
                 <Prod
                   href={href(R.lakebase.url)}
                   icon={<LakebaseIcon />}
                   title="Lakebase"
-                  sub="App reads risk queue; planners write-back acknowledgements · branch on reset"
+                  sub="Postgres operational store · conversations + planner acknowledgement audit trail"
                 />
               </div>
             </div>

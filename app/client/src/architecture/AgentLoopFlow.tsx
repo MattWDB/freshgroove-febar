@@ -129,9 +129,9 @@ export function AgentLoopFlow() {
       <p className="text-sm text-muted-foreground leading-relaxed mb-5">
         The agent doesn't just diagnose — it{' '}
         <span className="font-medium text-foreground">takes the action</span>.
-        Genie queries the data, you approve the plan, then the agent sends the
-        transfer request and writes the recovery action back, updating Lakebase
-        live. One conversation, end to end.
+        Genie queries the governed gold tables, you approve the plan, then the
+        agent logs the corrective action to the audit trail — with your name
+        and timestamp. One conversation, end to end.
       </p>
 
       {/* the loop — desktop */}
@@ -153,9 +153,9 @@ export function AgentLoopFlow() {
           <div className="text-[10.5px] font-mono uppercase tracking-[0.16em] text-muted-foreground">
             Agentic analysis
           </div>
-          <MiniTile icon={<AgentBricksIcon />} label="Agent Bricks · orchestrates" />
+          <MiniTile icon={<AgentBricksIcon />} label="Agent loop · orchestrates" />
           <MiniTile icon={<GenieIcon />} label="Genie · text → SQL" />
-          <MiniTile icon={<LakebaseIcon />} label="Lakebase · queries the data" />
+          <MiniTile icon={<LakebaseIcon />} label="Gold tables · governed data" />
         </div>
 
         <Connector width={56} centered />
@@ -169,8 +169,8 @@ export function AgentLoopFlow() {
           className="flex flex-col"
           style={{ height: 130, justifyContent: 'space-between', flexShrink: 0 }}
         >
-          <Stage tileSize={50} iconSize={32} icon={<SendIcon />} name="Send email" />
-          <Stage tileSize={50} iconSize={32} icon={<LakebaseIcon />} name="Approve transfer" sub="update Lakebase" />
+          <Stage tileSize={50} iconSize={32} icon={<SendIcon />} name="Acknowledge" sub="one click" />
+          <Stage tileSize={50} iconSize={32} icon={<LakebaseIcon />} name="Audit trail" sub="Delta write-back" />
         </div>
       </div>
 
@@ -179,13 +179,13 @@ export function AgentLoopFlow() {
         <MobileStep icon={<OperatorIcon />} label="Operator" sub="asks the question" />
         <li className="rounded-xl border border-border bg-background p-3 flex flex-col gap-2">
           <div className="text-[10.5px] font-mono uppercase tracking-[0.16em] text-muted-foreground">Agentic analysis</div>
-          <MiniTile icon={<AgentBricksIcon />} label="Agent Bricks · orchestrates" />
+          <MiniTile icon={<AgentBricksIcon />} label="Agent loop · orchestrates" />
           <MiniTile icon={<GenieIcon />} label="Genie · text → SQL" />
-          <MiniTile icon={<LakebaseIcon />} label="Lakebase · queries the data" />
+          <MiniTile icon={<LakebaseIcon />} label="Gold tables · governed data" />
         </li>
         <MobileStep icon={<ProposeIcon />} label="Propose action" sub="human approves" />
-        <MobileStep icon={<SendIcon />} label="Send email" />
-        <MobileStep icon={<LakebaseIcon />} label="Approve transfer" sub="update Lakebase" />
+        <MobileStep icon={<SendIcon />} label="Acknowledge" sub="one click" />
+        <MobileStep icon={<LakebaseIcon />} label="Audit trail" sub="Delta write-back" />
       </ol>
 
       {/* governed strip */}
