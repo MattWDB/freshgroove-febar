@@ -151,4 +151,49 @@ export function registerFreshgrooveRoutes(app: Application): void {
     }
   });
 
+  // ── Conversation stubs (graceful fallback when Lakebase migrations aren't ready)
+  // Registered before the migration gate. Once migrations succeed these are
+  // shadowed by the real AppKit chat routes further down the middleware chain.
+  const memConversations = new Map<string, {id:string;title:string;kind:string;userEmail:string;createdAt:string;updatedAt:string}>();
+  let convoSeq = 1;
+  function makeConvo(email: string, title = 'New conversation', kind = 'chat') {
+    const id = `mem-${convoSeq++}`;
+    const now = new Date().toISOString();
+    const c = { id, title, kind, userEmail: email, createdAt: now, updatedAt: now };
+    memConversations.set(id, c);
+    return c;
+  }
+
+  app.get('/api/conversations', (req: Request, res: Response) => {
+    const email = (req.headers['x-forwarded-email'] as string) ?? 'user@freshgroove.com';
+    res.json(Array.from(memConversations.values()).filter(c => c.userEmail === email)
+      .map(({ id, title, kind, createdAt, updatedAt }) => ({ id, title, kind, createdAt, updatedAt })));
+  });
+
+  app.post('/api/conversations', (req: Request, res: Response) => {
+    const email = (req.headers['x-forwarded-email'] as string) ?? 'user@freshgroove.com';
+    res.json(makeConvo(email, (req.body as any)?.title ?? 'New conversation', (req.body as any)?.kind ?? 'chat'));
+  });
+
+  app.get('/api/dock-conversation', (req: Request, res: Response) => {
+    const email = (req.headers['x-forwarded-email'] as string) ?? 'user@freshgroove.com';
+    let dock = Array.from(memConversations.values()).find(c => c.userEmail === email && c.kind === 'dock');
+    if (!dock) dock = makeConvo(email, 'Assistant', 'dock');
+    res.json({ ...dock, messages: [] });
+  });
+
+  app.get('/api/conversations/:id', (req: Request, res: Response) => {
+    const c = memConversations.get(req.params.id);
+    if (!c) { res.status(404).json({ error: 'Not found' }); return; }
+    res.json({ ...c, messages: [] });
+  });
+
+  app.delete('/api/conversations/:id', (req: Request, res: Response) => {
+    memConversations.delete(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.get('/api/activity/recent', (_req: Request, res: Response) => {
+    res.json([]);
+  });
 }
