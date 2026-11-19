@@ -1,6 +1,6 @@
 # FreshGroove Perishable Control Tower
 
-**Business outcome:** FreshGroove Foods loses an estimated $3.5M/year to perishable waste (12% spoilage rate) and OTIF chargebacks (91% on-time rate). This build delivers a Databricks-native control tower that flags at-risk SKUs 5–8 days early, serves recommended actions in real time, and creates an operational audit trail. Conservative year-1 impact: **$2.2M in savings**.
+**Business outcome:** FreshGroove Foods loses an estimated $3.5M/year to perishable waste (12% spoilage rate) and OTIF chargebacks (91% on-time rate). **Priya Sharma, VP Perishable Operations**, owns both compensated KPIs — spoilage rate and OTIF — and both appear in her annual performance review. This build delivers a Databricks-native control tower that flags at-risk SKUs 5–8 days early, serves recommended actions in real time, and creates an operational audit trail for chargeback disputes. Conservative year-1 impact: **$2.2M in savings**.
 
 ## The Data Journey
 

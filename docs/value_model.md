@@ -1,10 +1,20 @@
 # Value Model — FreshGroove Foods
 
+## Stakeholder
+
+**Priya Sharma — VP Perishable Operations, FreshGroove Foods**
+
+Priya owns the company's perishable P&L. Her two compensated targets are:
+- **Waste rate**: currently 12%, target 6% (industry benchmark). Each percentage point = ~$167K/year.
+- **OTIF rate**: currently 91%, retailer threshold 98%. Each chargeback deducts 3% of the invoice. The VP of Supply Chain (her peer) is separately accountable for transportation; Priya owns the product-readiness side that determines whether the right product ships on time.
+
+Both targets appear in her annual performance review. The combined gap vs. benchmark is $3.5M/year — a number her CFO tracks quarterly.
+
 ## Business Case Summary
 
 FreshGroove Foods is losing approximately $3.5M/year across two categories:
-- **Perishable waste:** ~$2.0M/year at 12% spoilage rate
-- **OTIF chargebacks:** ~$1.5M/year at 91% OTIF
+- **Perishable waste:** ~$2.0M/year at 12% spoilage rate (Priya's primary KPI)
+- **OTIF chargebacks:** ~$1.5M/year at 91% OTIF (joint accountability with VP Supply Chain)
 
 Conservative year-1 target: **$2.2M/year** in combined savings.
 
