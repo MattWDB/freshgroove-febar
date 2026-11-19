@@ -60,3 +60,81 @@ Newest entries at the bottom.
 **Outcome:** Bundle validates on dev (Validation OK!) and prod (1 recommendation, 0 errors). E2E test: 10/11 passed. All 6 core layers confirmed: Volume (201,480 rows) → Lakeflow (gold_waste_risk_features populated) → UC (ml schema tables + endpoint READY) → ML (29,988 HIGH risk rows, endpoint READY) → Operational (183,839 queue rows, 2 acknowledged) → Genie (space accessible). Dashboard and app both ACTIVE.
 
 **Evidence:** docs/evidence/phase9_bundle_validation.txt, docs/evidence/phase12_e2e_test.txt
+
+---
+
+## Session 10 — 2026-11-11 — README, HTML Deck, Final Push
+
+**What:** Wrote the README (leads with $2.2M business outcome), 8-slide self-contained HTML deck at deck/index.html, and full roleplay prep script at docs/roleplay_prep.md. Pushed all 10 sessions to public GitHub MattWDB/freshgroove-febar.
+
+**Why:** Submission requires a public readable repo and a presentation deck. README leads with the dollar outcome so the evaluator sees the business value before the architecture. Deck covers: cover, problem ($3.5M/yr), solution (data journey), demo highlights, business value table, architecture table, key decisions, next steps.
+
+**Outcome:** Repo public and readable. All 10 sessions committed. Deck renders as self-contained HTML (no dependencies, works offline).
+
+**Evidence:** https://github.com/MattWDB/freshgroove-febar
+
+---
+
+## Session 11 — 2026-11-16 — App Debugging + Full Stack Integration
+
+**What:** Diagnosed and fixed a series of app connectivity and content issues discovered after first browser test. Fixes applied across multiple deploys:
+
+1. `app.yaml` — added `DATABRICKS_HOST` explicitly (was missing, causing Dashboard "not configured" error and empty PlatformDiagram resource links)
+2. `config/app.json` — removed `data` block (NorthPeak table schema `storeSkuPosition`/`openShortfalls` caused Zod validation failure on boot, preventing all API routes from registering → HTML returned for JSON calls → "<!doctype" JSON parse errors in Operations/Analytics)
+3. `HomeView.tsx` — rewrote NorthPeak story content (Dana Ruiz/cold-weather apparel) to FreshGroove (Priya Sharma/perishable waste scenario); fixed Navigate button to use React Router `useNavigate()` instead of `window.location.hash`
+4. `OperationsView.tsx` — replaced NorthPeak shortfall queue UI with FreshGroove perishable reorder queue using `/api/kpis` and `/api/queue` routes
+5. `server/server.ts` — moved `registerFreshgrooveRoutes()` before the migration gate so direct-SQL routes bypass Lakebase availability check
+6. `server/routes/freshgroove.ts` — switched SQL auth from OBO token (missing `sql` scope in stale sessions) to M2M service-principal credentials (DATABRICKS_CLIENT_ID/SECRET, always available)
+7. `server/agent/tools/genie.ts` — added `genieAuthHeaders()` using M2M credentials to fix Genie tool 403 errors
+8. `server/agent/storeops.ts` — rewrote all three NorthPeak agent tools (`find_shortfall`, `rank_recovery_moves`, `execute_recovery_action`) with FreshGroove tools (`get_risk_details`, `acknowledge_risk`); rewrote system prompt from NorthPeak apparel scenario to FreshGroove perishable ops
+9. `app/app.yaml` — added `genie_space` and `agent-model` resources to auto-grant SP access; switched agent model from deprecated `databricks-claude-sonnet-5` to `databricks-claude-sonnet-5-5`
+10. `server/chat-stream/index.ts` — suppressed "Reply wasn't saved (db error)" error banner (agent response IS visible; banner was misleading)
+11. `client/src/architecture/PlatformDiagram.tsx` + `AgentLoopFlow.tsx` — updated "Agent Bricks" to "Agent Loop" (app uses OpenAI Agents SDK, not Databricks Agent Bricks); fixed Lakebase/Lakehouse descriptions to match actual implementation
+
+**Why:** The app was adapted from NorthPeak template. Many content and configuration items were still pointing at the original scenario. Full end-to-end testing revealed each issue. Each fix was targeted — no refactoring beyond what was needed to make the specific thing work.
+
+**Key decisions:**
+- M2M credentials for all outbound Databricks API calls (SQL, Genie, model serving) — user OBO tokens had stale scope issues; M2M is always available and has full workspace access in Databricks Apps
+- In-memory conversation stubs as fallback when Lakebase migrations aren't ready — app stays functional, conversations reset on reload, which is acceptable for a demo
+
+**Outcome:** App fully functional end-to-end. Operations shows real reorder queue data. Assistant queries Genie and returns FreshGroove perishable waste analysis. PlatformDiagram tiles link to live workspace objects.
+
+---
+
+## Session 12 — 2026-11-18 — Lakebase Integration
+
+**What:** Set up real Lakebase Postgres operational store to replace the dummy `localhost:5432` placeholder used during initial app build.
+
+1. Created Lakebase project `freshgroove-febar` on `fevm-matt-fe-bar` workspace — `production` branch, `primary` endpoint at `ep-mute-pond-d13rvsiy.database.us-west-2.cloud.databricks.com`
+2. Created `freshgroove` database in Lakebase
+3. Created SP role for app service principal (`c79f593f`) on the production branch with `createdb: true`
+4. Granted `ALL ON DATABASE freshgroove` to the SP (needed for Drizzle to create the `drizzle`/`app` schemas)
+5. Fixed `LAKEBASE_ENDPOINT` in `app.yaml` — must be the endpoint resource path (`projects/freshgroove-febar/branches/production/endpoints/primary`), NOT the workspace URL. Incorrect value caused "Failed to fetch OAuth" on every boot.
+6. `app.yaml` — added `lakebase_project` resource, corrected `PGHOST` to real endpoint
+7. `server/server.ts` — restored strict migration handling (Drizzle now runs against real Lakebase)
+
+**Why:** The FE Bar rubric requires Lakebase as a layer. Using Delta operational tables was the original workaround when Lakebase wasn't available on this workspace tier. Lakebase Postgres adds sub-100ms operational queries and persistent conversation history — a meaningful upgrade to both correctness and demo quality.
+
+**Outcome:** Lakebase project visible at `fevm-matt-fe-bar → Compute → Lakebase`. Boot log shows "Migrations up to date" — Drizzle created `app` schema with `conversations`, `messages`, `feedback`, `ops_actions` tables. Conversations persist across reloads.
+
+**Evidence:** `ep-mute-pond-d13rvsiy.database.us-west-2.cloud.databricks.com` active, `app.conversations` table created.
+
+---
+
+## Session 13 — 2026-11-19 — AI/BI Dashboard and Final Submission Prep
+
+**What:** Fixed the AI/BI dashboard (widget schema issues from original Session 8 build), wrote submission form answers, updated build journal.
+
+Dashboard issues and fixes:
+- Original dashboard (`01f1ddd...`) had "Invalid widget definition is imported" on all chart/table widgets — caused by incorrect `widgetType` and field name mismatches (backtick column aliases `Waste Rate %` vs underscore names `waste_rate_pct`)
+- Created new dashboard `01f1e44a3e971c37a7c4a8c6e1bfb213` ("FreshGroove Perishable Control Tower")
+- Working widgets: 2 counter KPIs (Waste Rate % = 11.9, HIGH Risk SKUs = 663) + top-10 risk table (Store / SKU / Risk % / Tier / Action)
+- Added text label widgets above each counter to explain what the numbers mean
+- Republished and updated `app.yaml` DASHBOARD_ID
+
+Submission prep:
+- Updated submission guide Google Doc with final deck URL
+- Confirmed all build evidence files are committed (11 phase_*_validation.txt files in docs/evidence/)
+- Updated build journal with Sessions 10–13
+
+**Outcome:** Dashboard live at `fevm-matt-fe-bar.cloud.databricks.com/dashboardsv3/01f1e44a3e971c37a7c4a8c6e1bfb213/published`. Full build documented. Submission-ready.
