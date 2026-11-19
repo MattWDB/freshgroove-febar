@@ -57,7 +57,7 @@ env:
   - name: DATABRICKS_HOST
     value: "https://fevm-matt-fe-bar.cloud.databricks.com"
   - name: DASHBOARD_ID
-    value: "01f1ddd68ed8119a9b9328fd0c5c414b"
+    value: "01f1e44a3e971c37a7c4a8c6e1bfb213"
   - name: PGHOST
     value: "ep-mute-pond-d13rvsiy.database.us-west-2.cloud.databricks.com"
   - name: PGDATABASE
