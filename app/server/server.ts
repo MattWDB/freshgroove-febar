@@ -1,45 +1,15 @@
 /**
- * Server boot — the ONE place where all backend pieces get wired together.
+ * Server boot — FreshGroove Perishable Control Tower.
  *
- * Template responsibilities, in order:
- *   1. Read `config/app.json` (the use-case knobs — agent endpoint, warehouse,
- *      dashboard, Delta sync tables, branding, scripted demo chain).
- *   2. Create the AppKit app with the 3 plugins we rely on:
+ * Boot order:
+ *   1. Read config/app.json (agent model, Genie space ID, dashboard ID, branding).
+ *   2. Create the AppKit app with 3 plugins:
  *        - server()     → Express, OBO auth forwarding, serve-the-client
- *        - lakebase()   → Postgres pool backed by Databricks Lakebase
- *        - analytics()  → SQL-warehouse-backed typed queries (AnalyticsView)
- *   3. Run Drizzle migrations against Lakebase (safe-to-re-run on boot).
- *   4. One-shot sync of Delta tables into the Lakebase mirror (`syncFromDelta`)
- *      so the app has an OLTP-friendly local copy of the read-only lakehouse.
- *   5. Get-or-create the MLflow experiment that will hold agent traces, then
- *      `mlflow.init(...)` so `@openai/agents` runs are recorded automatically.
- *   6. Register the Express routes (config, chat, domain CRUD, admin).
- *
- * ─────────────────────────────────────────────────────────────────────
- * REPURPOSING THIS TEMPLATE
- * ─────────────────────────────────────────────────────────────────────
- * The structural wiring (boot order, plugin set, route registration) is
- * use-case agnostic — leave it alone. Customization happens here:
- *
- *   • `config/app.json`              — branding, agent endpoint name OR
- *                                       Genie space ID, MLflow experiment
- *                                       path, dashboard id, Delta source
- *                                       tables, scripted demo prompts.
- *   • `db/schema.ts`                 — Lakebase OLTP tables (the writable
- *                                       mirror the agent + UI both use).
- *   • `db/sync.ts`                   — one-shot copy from Delta → Lakebase
- *                                       at boot. Update the table list.
- *   • `db/queries/returns.ts`        — domain queries; rename + rewrite.
- *   • `agent/refundops.ts`           — the agent itself. Rename the file
- *                                       to match your domain, update the
- *                                       import below, and rewrite tools +
- *                                       instructions.
- *   • `routes/returns.ts`            — REST endpoints for the queue. Add
- *                                       new routes for your domain.
- *
- * Cross-file: `client/src/shared/types.ts` is the single source of truth
- * for the domain types and is the FIRST thing to update when swapping
- * the data model.
+ *        - lakebase()   → Postgres pool backed by Databricks Lakebase (freshgroove-febar)
+ *        - analytics()  → SQL-warehouse-backed typed queries (AnalyticsView charts)
+ *   3. Run Drizzle migrations against Lakebase (creates app.conversations/messages/feedback/ops_actions).
+ *   4. Get-or-create the MLflow experiment for agent traces.
+ *   5. Register Express routes (config, chat, FreshGroove domain, admin, charts).
  */
 // Normalize DATABRICKS_HOST: in Databricks Apps, the runtime sometimes
 // injects a bare hostname (`e2-demo-west.cloud.databricks.com`) overriding
@@ -72,12 +42,10 @@ import * as mlflow from 'mlflow-tracing';
 
 import { createDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
-import { syncFromDelta } from './db/sync.js';
 import { ensureMlflowExperiment } from './lib/mlflow.js';
 
 import { registerConfigRoutes } from './routes/config.js';
 import { registerChatRoutes } from './routes/chat.js';
-import { registerStoreRoutes } from './routes/stores.js';
 import { registerActivityRoutes } from './routes/activity.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerChartRoutes } from './routes/charts.js';
@@ -143,37 +111,7 @@ type AppConfig = {
     prompt: string;
     triggerAfter?: string[];
   }>;
-  data?: {
-    catalog: string;
-    schema: string;
-    tables: {
-      storeSkuPosition: string;
-      openShortfalls: string;
-      // Optional — the ML recovery-recommendations table. The TRAINEE builds
-      // it (Build 2 ML step), so db/sync.ts tolerates it being absent.
-      // Mirrors tablesSchema below; keep the two in sync.
-      recoveryRecommendations?: string;
-    };
-  };
 };
-
-// ─────────────────────────────────────────────────────────────────────────
-// Validate config/app.json at boot — fail fast with one clear message
-// instead of letting a typo surface as a 500 deep in the agent loop or
-// a literal `<your-email>` reaching MLflow.
-//
-// Schema mirrors the `AppConfig` type above; `_*_help` keys in the JSON
-// are documentation and pass through unread. Unknown extra keys are
-// allowed (`.passthrough()`-equivalent — we only assert the required shape).
-// ─────────────────────────────────────────────────────────────────────────
-
-const tablesSchema = z.object({
-  storeSkuPosition: z.string().min(1),
-  openShortfalls: z.string().min(1),
-  // Optional — the ML recovery-recommendations table. The trainee builds it
-  // (Build 2 ML step); empty/omitted until then. db/sync.ts tolerates it.
-  recoveryRecommendations: z.string().optional(),
-});
 
 const appConfigSchema = z
   .object({
@@ -199,19 +137,6 @@ const appConfigSchema = z
           triggerAfter: z.array(z.string()).optional(),
         }),
       )
-      .optional(),
-    data: z
-      .object({
-        // NOT `.min(1)`: in local-dev / preview mode DEMO_CATALOG/DEMO_SCHEMA
-        // may be unset, so the `${DEMO_CATALOG}` placeholders resolve to "".
-        // We must BOOT (degraded) rather than crash — the Delta→Lakebase sync
-        // already no-ops when DATABRICKS_WAREHOUSE_ID is unset (db/sync.ts),
-        // which is the same condition, so empty catalog/schema never reaches
-        // a query. Deployed mode always has all three set together.
-        catalog: z.string(),
-        schema: z.string(),
-        tables: tablesSchema,
-      })
       .optional(),
   });
   // Strict by default — unknown keys are a config typo, not a feature. The
@@ -498,16 +423,12 @@ await createApp({
       agentModel: appConfig.agentModel,
     },
   });
-  registerStoreRoutes(app, { db });
   registerActivityRoutes(app, { db });
   registerAdminRoutes(app, { db, data: appConfig.data });
 
   // Analytics charts — custom route that substitutes catalog/schema into the
   // SQL (the AppKit analytics plugin can't template identifiers). Served at
   // /api/charts/<key>; AnalyticsView feeds the rows to charts via `data`.
-  // Always register chart routes — FreshGroove catalog/schema hardcoded here
-  // since we removed the data block from app.json (that schema expected NorthPeak
-  // table names; FreshGroove uses freshgroove.ts direct-SQL routes instead).
   registerChartRoutes(app, {
     query: (sql, params) => appkit.analytics.query(sql, params),
     catalog: process.env.CATALOG ?? 'matt_fe_bar_catalog',
@@ -561,24 +482,16 @@ function startBackgroundInit() {
 // but defer mlflow.init() until after sync — otherwise the SDK instruments
 // sync queries that have no parent span and produces noisy warnings.
 const mlflowIdPromise = (async () => {
-  // Resolve the experiment path with a self-derived fallback so tracing works
-  // out of the box on EVERY deploy path — no env plumbing required. Precedence:
-  //   1. explicit `agentMlflowExperimentPath` (from AGENT_MLFLOW_EXPERIMENT_PATH)
-  //   2. derived `/Shared/solution_builder/<app-name>-agent-traces`, where the
-  //      app name comes from DATABRICKS_APP_NAME (auto-injected in the Apps
-  //      container — the same var @databricks/appkit reads).
-  // Only when BOTH are empty (e.g. local dev with neither set) do we degrade.
+  // Resolve the MLflow experiment path. Precedence:
+  //   1. explicit `agentMlflowExperimentPath` (from config/app.json)
+  //   2. derived `/Shared/freshgroove/<app-name>-agent-traces` from DATABRICKS_APP_NAME
   const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
   const experimentPath =
     appConfig.agentMlflowExperimentPath ||
-    (appName ? `/Shared/solution_builder/${appName}-agent-traces` : '');
+    (appName ? `/Shared/freshgroove/${appName}-agent-traces` : '');
   if (!experimentPath) {
-    // Loud warning so this never silently breaks the "View trace" link in
-    // the chat (the symptom is "Trace pending…" forever — see FeedbackRow).
-    // Normally self-derived from DATABRICKS_APP_NAME; set
-    // AGENT_MLFLOW_EXPERIMENT_PATH explicitly to override.
     console.warn(
-      '[boot] no MLflow experiment path — agentMlflowExperimentPath is empty AND DATABRICKS_APP_NAME is unset, so nothing could be derived. Agent traces will NOT be recorded and the chat "View trace" link will show "Trace pending…". Set AGENT_MLFLOW_EXPERIMENT_PATH (e.g. /Shared/solution_builder/<app-name>-agent-traces).',
+      '[boot] no MLflow experiment path — agentMlflowExperimentPath is empty AND DATABRICKS_APP_NAME is unset. Agent traces will NOT be recorded.',
     );
     return null;
   }
@@ -600,16 +513,12 @@ const mlflowIdPromise = (async () => {
   }
 })();
 
-// Migrations → sync → then activate MLflow tracing. The promise here is
+// Migrations → then activate MLflow tracing. The promise here is
 // what the /api gate middleware awaits.
 migrationsReady = (async () => {
   try {
     await runMigrations(db);
     console.log(`[boot +${ms()}] Migrations up to date`);
-    if (appConfig.data) {
-      await syncFromDelta(db, appConfig.data);
-      console.log(`[boot +${ms()}] Delta sync done`);
-    }
     migrationsDone = true;
   } catch (e) {
     migrationsFailure = e instanceof Error ? e : new Error(String(e));

@@ -62,7 +62,7 @@ export async function ensureMlflowExperiment(
         if (id) return id;
       }
     }
-    // Nested path (e.g. /Shared/solution_builder/...): experiments/create does
+    // Nested path (e.g. /Shared/freshgroove/...): experiments/create does
     // NOT create intermediate directories, so a first-ever deploy 404s with
     // "Parent directory does not exist". Create the parent dir (idempotent) and
     // retry the experiment create once.

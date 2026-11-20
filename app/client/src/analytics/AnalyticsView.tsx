@@ -7,11 +7,9 @@
  *
  * How the data flows: each chart fetches `/api/charts/<key>` (see
  * server/routes/charts.ts). That route reads config/queries/<key>.sql —
- * written SCHEMA-RELATIVE (`FROM gold_store_sku_position`, no catalog/schema
+ * written SCHEMA-RELATIVE (e.g. `FROM gold_waste_risk_features`, no catalog/schema
  * qualifier) — and runs it with the demo's catalog+schema as the SQL
- * session context, so one env var (DEMO_CATALOG/DEMO_SCHEMA) drives the
- * analytics tables on any workspace. Rows come back via `useChartData` and
- * feed the chart components' `data` prop.
+ * session context. Rows come back via `useChartData` and feed chart components.
  *
  * NOTE: we deliberately do NOT use AppKit's `useAnalyticsQuery` /
  * `<Chart queryKey=…>` plugin path — its query route can't set the

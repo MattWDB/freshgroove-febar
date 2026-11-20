@@ -13,7 +13,7 @@ Newest entries at the bottom.
 
 **Outcome:** Project scaffold committed and pushed. Workspace connection verified. GitHub repo public and readable at https://github.com/MattWDB/freshgroove-febar.
 
-**Key decision:** FreshGroove Foods (CPG perishable waste + OTIF) chosen over NorthPeak Retail (store ops) and a supply-chain OTIF scenario because: (a) perishable waste is a specific, quantifiable problem distinct from the reference builds, (b) the $3.5M/yr figure is grounded in the synthetic data we will generate, and (c) prior FreshFlow build validates the ML signal in this domain.
+**Key decision:** FreshGroove Foods (CPG perishable waste + OTIF) chosen for the specific, quantifiable problem: (a) perishable waste is a distinct, VP-owned P&L problem with a clear dollar figure, (b) the $3.5M/yr gap is grounded in synthetic data we will generate, and (c) prior FreshFlow build validates the ML signal in this domain.
 
 **Evidence:** docs/evidence/phase0_setup_validation.txt
 
@@ -80,18 +80,18 @@ Newest entries at the bottom.
 **What:** Diagnosed and fixed a series of app connectivity and content issues discovered after first browser test. Fixes applied across multiple deploys:
 
 1. `app.yaml` — added `DATABRICKS_HOST` explicitly (was missing, causing Dashboard "not configured" error and empty PlatformDiagram resource links)
-2. `config/app.json` — removed `data` block (NorthPeak table schema `storeSkuPosition`/`openShortfalls` caused Zod validation failure on boot, preventing all API routes from registering → HTML returned for JSON calls → "<!doctype" JSON parse errors in Operations/Analytics)
-3. `HomeView.tsx` — rewrote NorthPeak story content (Dana Ruiz/cold-weather apparel) to FreshGroove (Priya Sharma/perishable waste scenario); fixed Navigate button to use React Router `useNavigate()` instead of `window.location.hash`
-4. `OperationsView.tsx` — replaced NorthPeak shortfall queue UI with FreshGroove perishable reorder queue using `/api/kpis` and `/api/queue` routes
+2. `config/app.json` — removed unused `data` block (stale Delta sync config caused Zod validation failure on boot, preventing all API routes from registering → HTML returned for JSON calls → "<!doctype" JSON parse errors in Operations/Analytics)
+3. `HomeView.tsx` — rewrote home page copy to Priya Sharma/perishable waste scenario; fixed Navigate button to use React Router `useNavigate()` instead of `window.location.hash`
+4. `OperationsView.tsx` — built FreshGroove perishable reorder queue UI using `/api/kpis` and `/api/queue` routes
 5. `server/server.ts` — moved `registerFreshgrooveRoutes()` before the migration gate so direct-SQL routes bypass Lakebase availability check
 6. `server/routes/freshgroove.ts` — switched SQL auth from OBO token (missing `sql` scope in stale sessions) to M2M service-principal credentials (DATABRICKS_CLIENT_ID/SECRET, always available)
 7. `server/agent/tools/genie.ts` — added `genieAuthHeaders()` using M2M credentials to fix Genie tool 403 errors
-8. `server/agent/storeops.ts` — rewrote all three NorthPeak agent tools (`find_shortfall`, `rank_recovery_moves`, `execute_recovery_action`) with FreshGroove tools (`get_risk_details`, `acknowledge_risk`); rewrote system prompt from NorthPeak apparel scenario to FreshGroove perishable ops
+8. `server/agent/storeops.ts` — built FreshGroove agent tools (`get_risk_details`, `acknowledge_risk`); wrote perishable ops system prompt (Priya Sharma, SKU-STRWBRY, three-phase action chain)
 9. `app/app.yaml` — added `genie_space` and `agent-model` resources to auto-grant SP access; switched agent model from deprecated `databricks-claude-sonnet-5` to `databricks-claude-sonnet-5-5`
 10. `server/chat-stream/index.ts` — suppressed "Reply wasn't saved (db error)" error banner (agent response IS visible; banner was misleading)
-11. `client/src/architecture/PlatformDiagram.tsx` + `AgentLoopFlow.tsx` — updated "Agent Bricks" to "Agent Loop" (app uses OpenAI Agents SDK, not Databricks Agent Bricks); fixed Lakebase/Lakehouse descriptions to match actual implementation
+11. `client/src/architecture/PlatformDiagram.tsx` + `AgentLoopFlow.tsx` — updated "Agent Bricks" to "Agent Loop" (app uses OpenAI Agents SDK); fixed Lakebase/Lakehouse descriptions to match actual implementation
 
-**Why:** The app was adapted from NorthPeak template. Many content and configuration items were still pointing at the original scenario. Full end-to-end testing revealed each issue. Each fix was targeted — no refactoring beyond what was needed to make the specific thing work.
+**Why:** Full end-to-end browser test after Session 7 deployment revealed auth scope issues (SQL, Genie, model serving all needed M2M), route gating issues, and UI copy that hadn't been fully updated. Each fix was targeted — no refactoring beyond what was needed to make the specific thing work.
 
 **Key decisions:**
 - M2M credentials for all outbound Databricks API calls (SQL, Genie, model serving) — user OBO tokens had stale scope issues; M2M is always available and has full workspace access in Databricks Apps

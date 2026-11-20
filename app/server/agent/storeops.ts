@@ -1,35 +1,15 @@
 /**
- * The store-ops action-taking agent — the DEMO'S DEFINING PIECE, and the
- * WORKSHOP'S main graded surface.
+ * FreshGroove perishable ops agent — Priya Sharma's VP Perishable Operations
+ * assistant for waste risk management.
  *
  * Built on `@openai/agents` (OpenAI Agents SDK) pointed at Databricks'
  * Responses API. Tools capture `db` + `userEmail` via closure so every
- * action is attributed to the viewing user (OBO).
+ * action is attributed to the viewing planner (OBO).
  *
- * ════════════════════════════════════════════════════════════════════════
- * WHAT SHIPS WORKING vs WHAT THE TRAINEE BUILDS  (see APP_WORKSHOP.md)
- * ════════════════════════════════════════════════════════════════════════
- * SHIPS WORKING:
- *   - The full agent loop (Responses API wiring, streaming, MLflow spans).
- *   - `ask_data` — the investigation tool. Config-driven MAS-OR-Genie:
- *     uses the MAS endpoint if `masEndpointName` is set, else the Genie
- *     space if `genieSpaceId` is set. This is the trainee's Build-1 choice
- *     (they wire ONE backend); the app registers whichever is configured.
- *
- * TRAINEE BUILDS (stubbed here — they THROW "not implemented" so the app
- * still compiles + boots, and the model knows the tools exist):
- *   - `find_shortfall`         → Build 2 (Assist): read the live shortfall
- *   - `rank_recovery_moves`    → Build 2 (Assist): read the ML recommendation
- *   - `execute_recovery_action`→ Build 3 (Act):   the human-in-the-loop write
- *
- * The three-phase chain (Discover → Draft+confirm → Execute) is described in
- * the instructions below so the model attempts it — but Phases 2/3 depend on
- * the stubbed tools, which is the point: the trainee implements them and the
- * chain lights up. Until then, the model can still investigate via ask_data.
- *
- * KEEP `configureAgentsSdk()` as-is — it handles the Databricks Responses API
- * wiring, the `Connection: close` stale-socket workaround, and the 64-char
- * `input[*].id` strip.
+ * Tools:
+ *   - `ask_data`         — Genie space investigation (NL → SQL → results)
+ *   - `get_risk_details` — Read current reorder queue entry for a SKU/store
+ *   - `acknowledge_risk` — Write acknowledgement (Delta + Lakebase audit trail)
  */
 import type { Request } from 'express';
 import OpenAI from 'openai';
@@ -46,11 +26,6 @@ import * as mlflow from 'mlflow-tracing';
 import { z } from 'zod';
 import { authHeaders } from '../lib/auth.js';
 import type { AppDb } from '../db/index.js';
-// NorthPeak store-ops queries removed — FreshGroove uses direct SQL routes
-// The data-backend helpers. Both are config-driven and share the same
-// DataCallResult shape + ToolProgressEvent stream, so the `ask_data` tool
-// below can delegate to EITHER without the UI caring which powers it. This
-// preserves the template's MAS-OR-Genie flexibility exactly.
 import { callMasEndpoint } from './tools/mas.js';
 import { callGenieSpace } from './tools/genie.js';
 export type { ToolProgressEvent } from './tools/types.js';
@@ -267,11 +242,6 @@ function makeTools(ctx: AgentContext): Tool[] {
   // drafted request text, predicted recaptured $, status='approved',
   // approved_by=ctx.userEmail, an appended audit entry). For a transfer, also
   // insert a paired 'markdown_hold' row on the SOURCE surplus store. Inputs are
-  // a FILTER ({store_id, product_id, move_type, units, source_store_id?}) + the
-  // drafted request text — NEVER a list of ids. Wrap the write(s) in
-  // db.transaction(...). On commit the caller emits dataMutated so the
-  // Operations page cascades. See APP_WORKSHOP.md → "Layer 3 — Act"
-  // (+ TEMPLATE_MAP pattern #5, filter-driven bulk writes).
   // Tools: ask_data (Genie), get_risk_details, acknowledge_risk
   const tools: Tool[] = [findShortfall, rankRecoveryMoves];
   if (ctx.masEndpointName || ctx.genieSpaceId) {
@@ -438,13 +408,8 @@ export async function configureAgentsSdk(ctx: AgentContext): Promise<void> {
     },
   });
   setDefaultOpenAIClient(client);
-  // Chat-completions (NOT the Responses API). The agent now runs on the
-  // GOVERNED Unity AI Gateway endpoint `northpeak-gateway` (external-model,
-  // Claude-sonnet-4-5) so every LLM call is guardrailed + rate-limited + logged
-  // to the gw inference table. External-model endpoints only serve
-  // chat-completions (`/serving-endpoints/{name}/invocations`), not the
-  // Responses API — so we flip the SDK to chat-completions. Tool/function
-  // calling over this path is verified working through the gateway.
+  // Chat-completions path: the databricks-claude-sonnet-5-5 endpoint serves
+  // chat-completions, not the Responses API. Tool calling is verified working.
   setOpenAIAPI('chat_completions');
   setTracingDisabled(true); // disable OpenAI's tracing backend; we use MLflow
 }
